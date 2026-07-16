@@ -6,6 +6,7 @@ export interface ProspectPlace {
   phone: string | null;
   website: string | null;
   rating: number | null;
+  ratingCount: number | null;
   category: string | null;
   placeId: string | null;
   cid: string | null;
@@ -40,7 +41,7 @@ export const searchPlaces = createServerFn({ method: "POST" })
     const json = (await serper("places", { q, gl: "br", hl: "pt-br", location: `${data.city}, Brazil`, num: data.num })) as {
       places?: Array<{
         title?: string; address?: string; phoneNumber?: string; website?: string;
-        rating?: number; category?: string; placeId?: string; cid?: string;
+        rating?: number; ratingCount?: number; category?: string; placeId?: string; cid?: string;
       }>;
     };
     const places: ProspectPlace[] = (json.places ?? []).slice(0, data.num).map((p) => ({
@@ -49,6 +50,7 @@ export const searchPlaces = createServerFn({ method: "POST" })
       phone: p.phoneNumber ?? null,
       website: p.website ?? null,
       rating: typeof p.rating === "number" ? p.rating : null,
+      ratingCount: typeof p.ratingCount === "number" ? p.ratingCount : null,
       category: p.category ?? null,
       placeId: p.placeId ?? null,
       cid: p.cid ?? null,
