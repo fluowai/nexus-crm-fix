@@ -252,9 +252,10 @@ function ProspectPage() {
 }
 
 function LeadCard({
-  row, onToggle, onEnrich, onCnpjChange, onDecisorChange,
+  row, segment, onToggle, onEnrich, onCnpjChange, onDecisorChange,
 }: {
   row: Row;
+  segment: string;
   onToggle: (v: boolean) => void;
   onEnrich: () => void;
   onCnpjChange: (v: string) => void;
