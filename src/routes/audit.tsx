@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  searchPlaces, analyzeCompetition, fetchPlacePhotos,
-  type ProspectPlace, type CompetitionReport, type PlacePhoto,
+  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking,
+  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking,
 } from "@/lib/prospect.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
