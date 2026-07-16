@@ -272,6 +272,26 @@ function LeadCard({
   const [photos, setPhotos] = useState<PlacePhoto[] | null>(null);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("google");
+  const [radius, setRadius] = useState<5 | 10 | 15>(5);
+  const [reports, setReports] = useState<Partial<Record<5 | 10 | 15, CompetitionReport>>>({});
+  const [reportLoading, setReportLoading] = useState(false);
+  const report = reports[radius];
+
+  const runCompetition = async (r: 5 | 10 | 15) => {
+    if (!row.address) return toast.error("Endereço indisponível para análise");
+    if (!segment) return toast.error("Segmento não informado");
+    setReportLoading(true);
+    try {
+      const rep = await analyzeCompetition({
+        data: { segment, address: row.address, targetName: row.title, targetPlaceId: row.placeId, radiusKm: r },
+      });
+      setReports((prev) => ({ ...prev, [r]: rep }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao analisar concorrência");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== "google" || photos !== null || photosLoading) return;
