@@ -266,6 +266,19 @@ function LeadCard({
     ? `https://www.google.com/maps/place/?q=place_id:${row.placeId}`
     : `https://www.google.com/maps/search/${encodeURIComponent(`${row.title} ${row.address ?? ""}`)}`;
 
+  const [photos, setPhotos] = useState<PlacePhoto[] | null>(null);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("google");
+
+  useEffect(() => {
+    if (activeTab !== "google" || photos !== null || photosLoading) return;
+    setPhotosLoading(true);
+    fetchPlacePhotos({ data: { name: row.title, city: row.address ?? "", address: row.address ?? "" } })
+      .then((r) => setPhotos(r.photos))
+      .catch(() => setPhotos([]))
+      .finally(() => setPhotosLoading(false));
+  }, [activeTab, photos, photosLoading, row.title, row.address]);
+
   return (
     <Card className={cn(
       "group relative overflow-hidden transition-all hover:shadow-lg",
