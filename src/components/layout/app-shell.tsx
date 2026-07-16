@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Zap,
+  Search,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,6 +32,7 @@ import { store, useStore } from "@/lib/store";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Prospectar", url: "/prospect", icon: Search },
   { title: "Leads", url: "/leads", icon: Users },
   { title: "Campanhas", url: "/campaigns", icon: Megaphone },
   { title: "Templates", url: "/templates", icon: FileText },
