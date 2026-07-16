@@ -190,13 +190,32 @@ export const analyzeCompetition = createServerFn({ method: "POST" })
     };
   });
 
+export interface KeywordPlaceEntry {
+  position: number;
+  title: string;
+  address: string | null;
+  rating: number | null;
+  reviews: number | null;
+  category: string | null;
+  website: string | null;
+  isTarget: boolean;
+  reasons: string[];
+}
+
+export interface KeywordRadiusBlock {
+  radiusKm: 5 | 10 | 15;
+  top3: KeywordPlaceEntry[];
+  targetPosition: number | null;
+  totalShown: number;
+}
+
 export interface KeywordRanking {
   keyword: string;
   location: string;
   localPack: {
     position: number | null;
     totalShown: number;
-    top: Array<{ title: string; rating: number | null; reviews: number | null; isTarget: boolean; position: number }>;
+    top: KeywordPlaceEntry[];
   };
   organic: {
     position: number | null;
@@ -204,6 +223,8 @@ export interface KeywordRanking {
     matchedUrl: string | null;
     top: Array<{ title: string; link: string; position: number; isTarget: boolean }>;
   };
+  perRadius: KeywordRadiusBlock[];
+  targetAnalysis: string[];
 }
 
 export const analyzeKeywordRanking = createServerFn({ method: "POST" })
@@ -220,24 +241,78 @@ export const analyzeKeywordRanking = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<KeywordRanking> => {
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
     const targetKey = normalize(data.targetName);
+    const kwTokens = data.keyword.toLowerCase().split(/\s+/).filter((t) => t.length > 3);
     const targetHost = (() => {
       if (!data.targetWebsite) return null;
       try { return new URL(data.targetWebsite.startsWith("http") ? data.targetWebsite : `https://${data.targetWebsite}`).hostname.replace(/^www\./, ""); }
       catch { return null; }
     })();
 
-    const [placesJson, searchJson] = await Promise.all([
-      serper("places", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: 20 }).catch(() => ({} as { places?: Array<{ title?: string; rating?: number; ratingCount?: number; placeId?: string }> })),
-      serper("search", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: 20 }).catch(() => ({} as { organic?: Array<{ title?: string; link?: string }> })),
+    type RawPlace = { title?: string; address?: string; rating?: number; ratingCount?: number; placeId?: string; category?: string; website?: string };
+
+    // Raio real não é suportado pela API — aproximamos aumentando o num.
+    const radii: Array<{ km: 5 | 10 | 15; num: number }> = [
+      { km: 5, num: 5 }, { km: 10, num: 10 }, { km: 15, num: 20 },
+    ];
+
+    const [radiusResults, searchJson] = await Promise.all([
+      Promise.all(
+        radii.map((r) =>
+          serper("places", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: r.num })
+            .then((j) => ({ km: r.km, arr: ((j as { places?: RawPlace[] }).places ?? []).slice(0, r.num) }))
+            .catch(() => ({ km: r.km, arr: [] as RawPlace[] })),
+        ),
+      ),
+      serper("search", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: 20 })
+        .catch(() => ({} as { organic?: Array<{ title?: string; link?: string }> })),
     ]);
 
-    const placesArr = ((placesJson as { places?: Array<{ title?: string; rating?: number; ratingCount?: number; placeId?: string }> }).places ?? []).slice(0, 20);
-    const localTop = placesArr.map((p, i) => {
+    function buildEntry(p: RawPlace, i: number): KeywordPlaceEntry {
       const title = p.title ?? "Sem nome";
+      const rating = typeof p.rating === "number" ? p.rating : null;
+      const reviews = typeof p.ratingCount === "number" ? p.ratingCount : null;
       const isTarget = !!((data.targetPlaceId && p.placeId === data.targetPlaceId) || normalize(title) === targetKey);
-      return { title, rating: typeof p.rating === "number" ? p.rating : null, reviews: typeof p.ratingCount === "number" ? p.ratingCount : null, isTarget, position: i + 1 };
+      const titleLower = title.toLowerCase();
+      const catLower = (p.category ?? "").toLowerCase();
+      const reasons: string[] = [];
+      if ((reviews ?? 0) >= 100) reasons.push(`Volume alto de reviews (${reviews})`);
+      else if ((reviews ?? 0) >= 30) reasons.push(`Reviews consistentes (${reviews})`);
+      if ((rating ?? 0) >= 4.7) reasons.push(`Nota excelente (${rating?.toFixed(1)})`);
+      else if ((rating ?? 0) >= 4.3) reasons.push(`Nota sólida (${rating?.toFixed(1)})`);
+      const kwHitTitle = kwTokens.filter((t) => titleLower.includes(t));
+      if (kwHitTitle.length) reasons.push(`Palavra-chave no nome: "${kwHitTitle.join(", ")}"`);
+      const kwHitCat = kwTokens.filter((t) => catLower.includes(t));
+      if (kwHitCat.length && p.category) reasons.push(`Categoria alinhada: ${p.category}`);
+      if (p.website) reasons.push("Site vinculado ao perfil");
+      if (!reasons.length) reasons.push("Sem sinais fortes — posição provavelmente por proximidade geográfica");
+      return {
+        position: i + 1,
+        title,
+        address: p.address ?? null,
+        rating,
+        reviews,
+        category: p.category ?? null,
+        website: p.website ?? null,
+        isTarget,
+        reasons,
+      };
+    }
+
+    const perRadius: KeywordRadiusBlock[] = radiusResults.map(({ km, arr }) => {
+      const entries = arr.map(buildEntry);
+      const idx = entries.findIndex((e) => e.isTarget);
+      return {
+        radiusKm: km,
+        top3: entries.slice(0, 3),
+        targetPosition: idx >= 0 ? idx + 1 : null,
+        totalShown: entries.length,
+      };
     });
-    const localIdx = localTop.findIndex((p) => p.isTarget);
+
+    // Usa o maior raio (15km / num:20) como base para localPack global
+    const fullest = radiusResults.find((r) => r.km === 15) ?? radiusResults[radiusResults.length - 1];
+    const localTop = fullest.arr.map(buildEntry);
+    const localIdx = localTop.findIndex((e) => e.isTarget);
 
     const organicArr = ((searchJson as { organic?: Array<{ title?: string; link?: string }> }).organic ?? []).slice(0, 20);
     let matchedUrl: string | null = null;
