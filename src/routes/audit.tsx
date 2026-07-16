@@ -61,6 +61,10 @@ function AuditPage() {
   const [report, setReport] = useState<CompetitionReport | null>(null);
   const [photos, setPhotos] = useState<PlacePhoto[]>([]);
 
+  const [keywordsInput, setKeywordsInput] = useState("");
+  const [rankings, setRankings] = useState<KeywordRanking[]>([]);
+  const [rankLoading, setRankLoading] = useState(false);
+
   const [consultant, setConsultant] = useState("Nexus360 — Consultoria Digital");
   const [items, setItems] = useState<ProposalItem[]>(DEFAULT_ITEMS);
   const [notes, setNotes] = useState(
