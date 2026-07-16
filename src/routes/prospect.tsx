@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Search, Sparkles, Download, Loader2, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
+  Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { searchPlaces, enrichLead, type ProspectPlace, type EnrichResult } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/prospect")({
   head: () => ({ meta: [{ title: "Prospectar — Nexus360" }] }),
@@ -24,6 +28,51 @@ type Row = ProspectPlace & {
   enrichment?: EnrichResult;
   cnpj?: string;
   decisor?: string;
+};
+
+interface Analysis {
+  score: number;
+  tier: "quente" | "morno" | "frio";
+  signals: { label: string; ok: boolean }[];
+  reviewsTier: "top" | "solido" | "novo";
+}
+
+function analyze(r: Row): Analysis {
+  const rating = r.rating ?? 0;
+  const reviews = r.ratingCount ?? 0;
+  const hasSite = !!r.website;
+  const hasPhone = !!r.phone;
+
+  let score = 0;
+  if (rating >= 4.5) score += 35;
+  else if (rating >= 4.0) score += 25;
+  else if (rating >= 3.5) score += 15;
+  if (reviews >= 200) score += 30;
+  else if (reviews >= 50) score += 20;
+  else if (reviews >= 10) score += 10;
+  if (hasSite) score += 15;
+  if (hasPhone) score += 20;
+
+  const tier: Analysis["tier"] = score >= 75 ? "quente" : score >= 45 ? "morno" : "frio";
+  const reviewsTier: Analysis["reviewsTier"] = reviews >= 200 ? "top" : reviews >= 30 ? "solido" : "novo";
+
+  return {
+    score,
+    tier,
+    reviewsTier,
+    signals: [
+      { label: "Telefone", ok: hasPhone },
+      { label: "Site", ok: hasSite },
+      { label: `${reviews}+ reviews`, ok: reviews >= 30 },
+      { label: `Nota ${rating || "–"}`, ok: rating >= 4.0 },
+    ],
+  };
+}
+
+const TIER_META: Record<Analysis["tier"], { label: string; className: string; icon: typeof TrendingUp }> = {
+  quente: { label: "Lead quente", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400", icon: TrendingUp },
+  morno: { label: "Potencial", className: "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400", icon: Minus },
+  frio: { label: "Baixa", className: "bg-slate-500/10 text-slate-500 border-slate-500/30", icon: TrendingDown },
 };
 
 function ProspectPage() {
@@ -98,10 +147,7 @@ function ProspectPage() {
         has_whatsapp: null,
         place_id: r.placeId,
         stage: "novo",
-        notes: [
-          r.cnpj ? `CNPJ: ${r.cnpj}` : null,
-          r.decisor ? `Decisor: ${r.decisor}` : null,
-        ].filter(Boolean).join(" • ") || null,
+        notes: [r.cnpj ? `CNPJ: ${r.cnpj}` : null, r.decisor ? `Decisor: ${r.decisor}` : null].filter(Boolean).join(" • ") || null,
         last_contacted_at: null,
       });
     }
@@ -109,18 +155,25 @@ function ProspectPage() {
     setRows((rs) => rs.map((r) => (r.selected ? { ...r, selected: false } : r)));
   };
 
-  const allSelected = rows.length > 0 && rows.every((r) => r.selected);
   const selectedCount = rows.filter((r) => r.selected).length;
+  const stats = useMemo(() => {
+    const analyzed = rows.map(analyze);
+    return {
+      quente: analyzed.filter((a) => a.tier === "quente").length,
+      morno: analyzed.filter((a) => a.tier === "morno").length,
+      frio: analyzed.filter((a) => a.tier === "frio").length,
+    };
+  }, [rows]);
 
   return (
     <AppShell title="Prospectar Leads">
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Buscar no Google (Serper)</CardTitle>
             <CardDescription>Digite o segmento e a cidade para importar do Google Meu Negócio</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_120px_1fr_auto]">
+          <CardContent className="grid gap-3 md:grid-cols-[1fr_1fr_100px_1fr_auto]">
             <div className="space-y-1">
               <Label>Segmento</Label>
               <Input value={segment} onChange={(e) => setSegment(e.target.value)} placeholder="ex.: dentista, restaurante" />
@@ -152,102 +205,214 @@ function ProspectPage() {
         </Card>
 
         {rows.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base">{rows.length} resultados</CardTitle>
-                <CardDescription>{selectedCount} selecionados</CardDescription>
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                  <TrendingUp className="mr-1 h-3 w-3" /> {stats.quente} quentes
+                </Badge>
+                <Badge variant="outline" className="bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
+                  <Minus className="mr-1 h-3 w-3" /> {stats.morno} potenciais
+                </Badge>
+                <Badge variant="outline" className="bg-slate-500/10 border-slate-500/30 text-slate-500">
+                  <TrendingDown className="mr-1 h-3 w-3" /> {stats.frio} baixas
+                </Badge>
+                <span className="text-muted-foreground">• {selectedCount} selecionados</span>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={enrichSelected} disabled={!selectedCount}>
-                  <Sparkles className="mr-1 h-3 w-3" /> Enriquecer selecionados
+                  <Sparkles className="mr-1 h-3 w-3" /> Enriquecer
                 </Button>
                 <Button size="sm" onClick={importSelected} disabled={!selectedCount}>
-                  <Download className="mr-1 h-3 w-3" /> Importar
+                  <Download className="mr-1 h-3 w-3" /> Importar {selectedCount || ""}
                 </Button>
               </div>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b text-left text-xs text-muted-foreground">
-                  <tr>
-                    <th className="p-2">
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={(v) => setRows((rs) => rs.map((r) => ({ ...r, selected: !!v })))}
-                      />
-                    </th>
-                    <th className="p-2">Empresa</th>
-                    <th className="p-2">Telefone</th>
-                    <th className="p-2">Categoria</th>
-                    <th className="p-2">Rating</th>
-                    <th className="p-2">CNPJ</th>
-                    <th className="p-2">Decisor</th>
-                    <th className="p-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={`${r.placeId ?? i}`} className="border-b align-top">
-                      <td className="p-2">
-                        <Checkbox
-                          checked={r.selected}
-                          onCheckedChange={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, selected: !!v } : row))}
-                        />
-                      </td>
-                      <td className="p-2">
-                        <div className="font-medium">{r.title}</div>
-                        <div className="text-xs text-muted-foreground line-clamp-1">{r.address}</div>
-                        {r.website && (
-                          <a href={r.website.startsWith("http") ? r.website : `https://${r.website}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary">
-                            {r.website} <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">{r.phone ?? "—"}</td>
-                      <td className="p-2">{r.category ?? "—"}</td>
-                      <td className="p-2">{r.rating != null ? <Badge variant="secondary">{r.rating}</Badge> : "—"}</td>
-                      <td className="p-2">
-                        {r.enrichment?.cnpj_suggestions.length ? (
-                          <select
-                            className="rounded border bg-background px-1 py-0.5 text-xs"
-                            value={r.cnpj ?? ""}
-                            onChange={(e) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, cnpj: e.target.value } : row))}
-                          >
-                            {r.enrichment.cnpj_suggestions.map((s) => (
-                              <option key={s.value} value={s.value}>{s.value}</option>
-                            ))}
-                          </select>
-                        ) : r.enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">—</span>}
-                      </td>
-                      <td className="p-2">
-                        {r.enrichment?.decisor_suggestions.length ? (
-                          <select
-                            className="rounded border bg-background px-1 py-0.5 text-xs max-w-[160px]"
-                            value={r.decisor ?? ""}
-                            onChange={(e) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, decisor: e.target.value } : row))}
-                          >
-                            {r.enrichment.decisor_suggestions.map((d) => (
-                              <option key={d.url} value={d.name}>{d.name}{d.role ? ` (${d.role})` : ""}</option>
-                            ))}
-                          </select>
-                        ) : r.enriching ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs text-muted-foreground">—</span>}
-                      </td>
-                      <td className="p-2">
-                        {!r.enrichment && !r.enriching && (
-                          <Button size="sm" variant="ghost" onClick={() => enrichRow(i)}>
-                            <Sparkles className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {rows.map((r, i) => (
+                <LeadCard
+                  key={r.placeId ?? `${r.title}-${i}`}
+                  row={r}
+                  onToggle={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, selected: v } : row))}
+                  onEnrich={() => enrichRow(i)}
+                  onCnpjChange={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, cnpj: v } : row))}
+                  onDecisorChange={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, decisor: v } : row))}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </AppShell>
+  );
+}
+
+function LeadCard({
+  row, onToggle, onEnrich, onCnpjChange, onDecisorChange,
+}: {
+  row: Row;
+  onToggle: (v: boolean) => void;
+  onEnrich: () => void;
+  onCnpjChange: (v: string) => void;
+  onDecisorChange: (v: string) => void;
+}) {
+  const a = analyze(row);
+  const tier = TIER_META[a.tier];
+  const TierIcon = tier.icon;
+  const site = row.website ? (row.website.startsWith("http") ? row.website : `https://${row.website}`) : null;
+  const mapsUrl = row.placeId
+    ? `https://www.google.com/maps/place/?q=place_id:${row.placeId}`
+    : `https://www.google.com/maps/search/${encodeURIComponent(`${row.title} ${row.address ?? ""}`)}`;
+
+  return (
+    <Card className={cn(
+      "group relative overflow-hidden transition-all hover:shadow-lg",
+      row.selected && "ring-2 ring-primary",
+    )}>
+      <div className={cn(
+        "absolute inset-x-0 top-0 h-1",
+        a.tier === "quente" && "bg-gradient-to-r from-emerald-500 to-teal-400",
+        a.tier === "morno" && "bg-gradient-to-r from-amber-500 to-orange-400",
+        a.tier === "frio" && "bg-gradient-to-r from-slate-400 to-slate-500",
+      )} />
+
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-3 min-w-0">
+            <Checkbox checked={row.selected} onCheckedChange={(v) => onToggle(!!v)} className="mt-1" />
+            <div className="min-w-0">
+              <CardTitle className="text-base leading-tight truncate">{row.title}</CardTitle>
+              {row.category && (
+                <CardDescription className="mt-0.5 flex items-center gap-1 text-xs">
+                  <Building2 className="h-3 w-3" /> {row.category}
+                </CardDescription>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <div className="text-right">
+              <div className="text-2xl font-bold leading-none tabular-nums">{a.score}</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">score</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className={cn("gap-1", tier.className)}>
+            <TierIcon className="h-3 w-3" /> {tier.label}
+          </Badge>
+          {row.rating != null && (
+            <Badge variant="secondary" className="gap-1">
+              <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+              {row.rating.toFixed(1)}
+              {row.ratingCount != null && <span className="text-muted-foreground">({row.ratingCount})</span>}
+            </Badge>
+          )}
+          {a.reviewsTier === "top" && <Badge variant="secondary" className="text-xs">🔥 Popular</Badge>}
+          {a.reviewsTier === "novo" && <Badge variant="outline" className="text-xs">Novo no Google</Badge>}
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-1.5 text-xs">
+          {a.signals.map((s) => (
+            <div key={s.label} className={cn(
+              "flex items-center gap-1.5 rounded-md border px-2 py-1",
+              s.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-border bg-muted/30 text-muted-foreground",
+            )}>
+              {s.ok ? <Check className="h-3 w-3 shrink-0" /> : <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />}
+              <span className="truncate">{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-1.5 text-xs">
+          {row.address && (
+            <div className="flex items-start gap-2 text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span className="line-clamp-1">{row.address}</span>
+            </div>
+          )}
+          {row.phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="tabular-nums">{row.phone}</span>
+            </div>
+          )}
+          {site && (
+            <a href={site} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+              <Globe className="h-3.5 w-3.5" />
+              <span className="truncate">{row.website}</span>
+              <ExternalLink className="h-3 w-3 shrink-0" />
+            </a>
+          )}
+        </div>
+
+        {(row.enrichment || row.enriching) && (
+          <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <Sparkles className="h-3 w-3" /> Enriquecimento
+            </div>
+            {row.enriching ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Buscando CNPJ e decisor…
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  {row.enrichment?.cnpj_suggestions.length ? (
+                    <select
+                      className="flex-1 rounded border bg-background px-1.5 py-0.5 text-xs"
+                      value={row.cnpj ?? ""}
+                      onChange={(e) => onCnpjChange(e.target.value)}
+                    >
+                      {row.enrichment.cnpj_suggestions.map((s) => (
+                        <option key={s.value} value={s.value}>{s.value}</option>
+                      ))}
+                    </select>
+                  ) : <span className="text-xs text-muted-foreground italic">CNPJ não encontrado</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  {row.enrichment?.decisor_suggestions.length ? (
+                    <select
+                      className="flex-1 rounded border bg-background px-1.5 py-0.5 text-xs"
+                      value={row.decisor ?? ""}
+                      onChange={(e) => onDecisorChange(e.target.value)}
+                    >
+                      {row.enrichment.decisor_suggestions.map((d) => (
+                        <option key={d.url} value={d.name}>{d.name}{d.role ? ` — ${d.role}` : ""}</option>
+                      ))}
+                    </select>
+                  ) : <span className="text-xs text-muted-foreground italic">Decisor não encontrado</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 pt-1">
+          {!row.enrichment && !row.enriching && (
+            <Button size="sm" variant="outline" className="flex-1" onClick={onEnrich}>
+              <Sparkles className="mr-1 h-3 w-3" /> Analisar
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" asChild>
+            <a href={mapsUrl} target="_blank" rel="noreferrer">
+              <MapPin className="h-3 w-3" />
+            </a>
+          </Button>
+          {row.phone && (
+            <Button size="sm" variant="ghost" asChild>
+              <a href={`https://wa.me/${row.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
+                <MessageSquare className="h-3 w-3" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
