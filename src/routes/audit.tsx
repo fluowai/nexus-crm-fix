@@ -114,6 +114,35 @@ function AuditPage() {
     }
   };
 
+  const runKeywordRanking = async () => {
+    if (!selected) return toast.error("Selecione um perfil primeiro");
+    const kws = keywordsInput.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 6);
+    if (!kws.length) return toast.error("Informe ao menos uma palavra-chave");
+    setRankLoading(true);
+    setRankings([]);
+    try {
+      const results = await Promise.all(
+        kws.map((kw) =>
+          analyzeKeywordRanking({
+            data: {
+              keyword: kw,
+              location: selected.address || city,
+              targetName: selected.title,
+              targetPlaceId: selected.placeId,
+              targetWebsite: selected.website,
+            },
+          }),
+        ),
+      );
+      setRankings(results);
+      toast.success(`Analisadas ${results.length} palavra(s)-chave`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na análise de keywords");
+    } finally {
+      setRankLoading(false);
+    }
+  };
+
   const total = items.filter((i) => i.selected).reduce((s, i) => s + i.price, 0);
 
   return (
