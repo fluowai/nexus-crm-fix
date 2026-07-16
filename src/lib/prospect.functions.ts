@@ -334,11 +334,33 @@ export const analyzeKeywordRanking = createServerFn({ method: "POST" })
     });
     const organicIdx = organicTop.findIndex((o) => o.isTarget);
 
+    // Análise do alvo: por que está (ou não) posicionado
+    const targetAnalysis: string[] = [];
+    const targetEntry = localTop.find((e) => e.isTarget) ?? null;
+    if (targetEntry) {
+      targetAnalysis.push(`Aparece em ${targetEntry.position}º no local pack para "${data.keyword}".`);
+      targetAnalysis.push(...targetEntry.reasons.map((r) => `Fator observado: ${r}.`));
+      const leader = localTop[0];
+      if (leader && !leader.isTarget) {
+        const gapReviews = (leader.reviews ?? 0) - (targetEntry.reviews ?? 0);
+        if (gapReviews > 0) targetAnalysis.push(`Líder tem ${gapReviews} reviews a mais.`);
+        const gapRating = (leader.rating ?? 0) - (targetEntry.rating ?? 0);
+        if (gapRating > 0.1) targetAnalysis.push(`Líder tem nota ${gapRating.toFixed(1)} pontos acima.`);
+      }
+    } else {
+      targetAnalysis.push(`Não aparece nos ${localTop.length} primeiros para "${data.keyword}".`);
+      const leader = localTop[0];
+      if (leader) targetAnalysis.push(`Líder atual: ${leader.title} (${leader.rating?.toFixed(1) ?? "–"} • ${leader.reviews ?? 0} reviews).`);
+      targetAnalysis.push("Ação: reforçar reviews, categoria, palavras-chave no nome/descrição e sinais de proximidade.");
+    }
+
     return {
       keyword: data.keyword,
       location: data.location,
       localPack: { position: localIdx >= 0 ? localIdx + 1 : null, totalShown: localTop.length, top: localTop.slice(0, 10) },
       organic: { position: organicIdx >= 0 ? organicIdx + 1 : null, totalShown: organicTop.length, matchedUrl, top: organicTop.slice(0, 10) },
+      perRadius,
+      targetAnalysis,
     };
   });
 
