@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
   Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
