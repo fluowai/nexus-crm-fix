@@ -405,30 +405,53 @@ function AuditPage() {
                             </Badge>
                           </div>
                         </div>
-                        <div className="mt-2 grid gap-3 md:grid-cols-2">
-                          <div>
-                            <div className="mb-1 text-[10px] uppercase text-muted-foreground">Top Local (mapa)</div>
-                            <ol className="space-y-0.5 text-xs">
-                              {r.localPack.top.slice(0, 5).map((p) => (
-                                <li key={p.position} className={cn("flex justify-between gap-2", p.isTarget && "font-semibold text-primary")}>
-                                  <span className="truncate">{p.position}. {p.title}{p.isTarget && " ← você"}</span>
-                                  <span className="shrink-0 text-muted-foreground">{p.rating?.toFixed(1) ?? "–"} ({p.reviews ?? 0})</span>
-                                </li>
+                        {r.targetAnalysis.length > 0 && (
+                          <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
+                            <div className="mb-1 text-[10px] uppercase text-muted-foreground">Análise do seu perfil</div>
+                            <ul className="space-y-0.5">
+                              {r.targetAnalysis.map((t, i) => (
+                                <li key={i} className="flex gap-1.5"><span className="text-primary">•</span>{t}</li>
                               ))}
-                              {!r.localPack.top.length && <li className="text-muted-foreground">Sem dados</li>}
-                            </ol>
+                            </ul>
                           </div>
-                          <div>
-                            <div className="mb-1 text-[10px] uppercase text-muted-foreground">Top Orgânico</div>
-                            <ol className="space-y-0.5 text-xs">
-                              {r.organic.top.slice(0, 5).map((o) => (
-                                <li key={o.position} className={cn("truncate", o.isTarget && "font-semibold text-primary")}>
-                                  {o.position}. {o.title || o.link}{o.isTarget && " ← você"}
-                                </li>
-                              ))}
-                              {!r.organic.top.length && <li className="text-muted-foreground">Sem dados</li>}
-                            </ol>
-                          </div>
+                        )}
+                        <div className="mt-3 grid gap-2 md:grid-cols-3">
+                          {r.perRadius.map((block) => (
+                            <div key={block.radiusKm} className="rounded-md border p-2">
+                              <div className="flex items-center justify-between text-[10px] uppercase text-muted-foreground">
+                                <span>Raio {block.radiusKm}km — Top 3</span>
+                                <span>{block.targetPosition ? `Você: ${block.targetPosition}º` : "fora"}</span>
+                              </div>
+                              <ol className="mt-1 space-y-1.5 text-xs">
+                                {block.top3.map((p) => (
+                                  <li key={p.position} className={cn("rounded border p-1.5", p.isTarget && "border-primary bg-primary/5")}>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="truncate font-medium">{p.position}. {p.title}{p.isTarget && " (você)"}</span>
+                                      <span className="shrink-0 text-muted-foreground">{p.rating?.toFixed(1) ?? "–"}·{p.reviews ?? 0}</span>
+                                    </div>
+                                    {p.category && <div className="text-[10px] text-muted-foreground truncate">{p.category}</div>}
+                                    <ul className="mt-1 space-y-0.5">
+                                      {p.reasons.slice(0, 3).map((rs, i) => (
+                                        <li key={i} className="text-[10px] text-muted-foreground flex gap-1"><Check className="h-2.5 w-2.5 mt-0.5 shrink-0 text-primary" />{rs}</li>
+                                      ))}
+                                    </ul>
+                                  </li>
+                                ))}
+                                {!block.top3.length && <li className="text-[10px] text-muted-foreground">Sem dados</li>}
+                              </ol>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3">
+                          <div className="mb-1 text-[10px] uppercase text-muted-foreground">Top Orgânico</div>
+                          <ol className="space-y-0.5 text-xs">
+                            {r.organic.top.slice(0, 5).map((o) => (
+                              <li key={o.position} className={cn("truncate", o.isTarget && "font-semibold text-primary")}>
+                                {o.position}. {o.title || o.link}{o.isTarget && " ← você"}
+                              </li>
+                            ))}
+                            {!r.organic.top.length && <li className="text-muted-foreground">Sem dados</li>}
+                          </ol>
                         </div>
                       </div>
                     ))}
