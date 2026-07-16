@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  searchPlaces, analyzeCompetition, fetchPlacePhotos,
-  type ProspectPlace, type CompetitionReport, type PlacePhoto,
+  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking,
+  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking,
 } from "@/lib/prospect.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,6 +60,10 @@ function AuditPage() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CompetitionReport | null>(null);
   const [photos, setPhotos] = useState<PlacePhoto[]>([]);
+
+  const [keywordsInput, setKeywordsInput] = useState("");
+  const [rankings, setRankings] = useState<KeywordRanking[]>([]);
+  const [rankLoading, setRankLoading] = useState(false);
 
   const [consultant, setConsultant] = useState("Nexus360 — Consultoria Digital");
   const [items, setItems] = useState<ProposalItem[]>(DEFAULT_ITEMS);
@@ -107,6 +111,35 @@ function AuditPage() {
       toast.error(e instanceof Error ? e.message : "Falha na análise");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runKeywordRanking = async () => {
+    if (!selected) return toast.error("Selecione um perfil primeiro");
+    const kws = keywordsInput.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 6);
+    if (!kws.length) return toast.error("Informe ao menos uma palavra-chave");
+    setRankLoading(true);
+    setRankings([]);
+    try {
+      const results = await Promise.all(
+        kws.map((kw) =>
+          analyzeKeywordRanking({
+            data: {
+              keyword: kw,
+              location: selected.address || city,
+              targetName: selected.title,
+              targetPlaceId: selected.placeId,
+              targetWebsite: selected.website,
+            },
+          }),
+        ),
+      );
+      setRankings(results);
+      toast.success(`Analisadas ${results.length} palavra(s)-chave`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha na análise de keywords");
+    } finally {
+      setRankLoading(false);
     }
   };
 
@@ -339,9 +372,74 @@ function AuditPage() {
                 </div>
               </section>
 
+              {/* Palavras-chave: posicionamento no Google */}
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Posicionamento por Palavra-chave</div>
+                  <span className="text-[10px] text-muted-foreground">Local pack (mapa) + resultados orgânicos • Google BR</span>
+                </div>
+                <div className="no-print grid gap-2 md:grid-cols-[1fr_auto]">
+                  <Textarea
+                    rows={3}
+                    placeholder={"Uma palavra-chave por linha, ex.:\nadvocacia previdenciária em palhoça\nadvogado inss palhoça"}
+                    value={keywordsInput}
+                    onChange={(e) => setKeywordsInput(e.target.value)}
+                  />
+                  <Button onClick={runKeywordRanking} disabled={rankLoading} className="md:self-start">
+                    {rankLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-2 h-4 w-4" /> Analisar</>}
+                  </Button>
+                </div>
+                {rankings.length > 0 && (
+                  <div className="grid gap-3">
+                    {rankings.map((r) => (
+                      <div key={r.keyword} className="rounded-lg border p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-sm">"{r.keyword}"</div>
+                          <div className="flex gap-2">
+                            <Badge variant={r.localPack.position && r.localPack.position <= 3 ? "default" : "secondary"}>
+                              {r.localPack.position ? (r.localPack.position <= 3 ? <TrendingUp className="mr-1 h-3 w-3" /> : <TrendingDown className="mr-1 h-3 w-3" />) : <TrendingDown className="mr-1 h-3 w-3" />}
+                              Mapa: {r.localPack.position ? `${r.localPack.position}º` : "fora do top"}
+                            </Badge>
+                            <Badge variant={r.organic.position && r.organic.position <= 5 ? "default" : "secondary"}>
+                              Orgânico: {r.organic.position ? `${r.organic.position}º` : "fora do top"}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid gap-3 md:grid-cols-2">
+                          <div>
+                            <div className="mb-1 text-[10px] uppercase text-muted-foreground">Top Local (mapa)</div>
+                            <ol className="space-y-0.5 text-xs">
+                              {r.localPack.top.slice(0, 5).map((p) => (
+                                <li key={p.position} className={cn("flex justify-between gap-2", p.isTarget && "font-semibold text-primary")}>
+                                  <span className="truncate">{p.position}. {p.title}{p.isTarget && " ← você"}</span>
+                                  <span className="shrink-0 text-muted-foreground">{p.rating?.toFixed(1) ?? "–"} ({p.reviews ?? 0})</span>
+                                </li>
+                              ))}
+                              {!r.localPack.top.length && <li className="text-muted-foreground">Sem dados</li>}
+                            </ol>
+                          </div>
+                          <div>
+                            <div className="mb-1 text-[10px] uppercase text-muted-foreground">Top Orgânico</div>
+                            <ol className="space-y-0.5 text-xs">
+                              {r.organic.top.slice(0, 5).map((o) => (
+                                <li key={o.position} className={cn("truncate", o.isTarget && "font-semibold text-primary")}>
+                                  {o.position}. {o.title || o.link}{o.isTarget && " ← você"}
+                                </li>
+                              ))}
+                              {!r.organic.top.length && <li className="text-muted-foreground">Sem dados</li>}
+                            </ol>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               {/* Ranking */}
               <section className="space-y-2">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Ranking de Concorrentes</div>
+
                 <div className="overflow-hidden rounded-lg border">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">

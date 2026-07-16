@@ -190,6 +190,83 @@ export const analyzeCompetition = createServerFn({ method: "POST" })
     };
   });
 
+export interface KeywordRanking {
+  keyword: string;
+  location: string;
+  localPack: {
+    position: number | null;
+    totalShown: number;
+    top: Array<{ title: string; rating: number | null; reviews: number | null; isTarget: boolean; position: number }>;
+  };
+  organic: {
+    position: number | null;
+    totalShown: number;
+    matchedUrl: string | null;
+    top: Array<{ title: string; link: string; position: number; isTarget: boolean }>;
+  };
+}
+
+export const analyzeKeywordRanking = createServerFn({ method: "POST" })
+  .inputValidator((data: { keyword: string; location: string; targetName: string; targetPlaceId?: string | null; targetWebsite?: string | null }) => {
+    if (!data?.keyword || !data?.location || !data?.targetName) throw new Error("keyword, location e targetName obrigatórios");
+    return {
+      keyword: String(data.keyword).slice(0, 160),
+      location: String(data.location).slice(0, 160),
+      targetName: String(data.targetName).slice(0, 160),
+      targetPlaceId: data.targetPlaceId ?? null,
+      targetWebsite: data.targetWebsite ?? null,
+    };
+  })
+  .handler(async ({ data }): Promise<KeywordRanking> => {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const targetKey = normalize(data.targetName);
+    const targetHost = (() => {
+      if (!data.targetWebsite) return null;
+      try { return new URL(data.targetWebsite.startsWith("http") ? data.targetWebsite : `https://${data.targetWebsite}`).hostname.replace(/^www\./, ""); }
+      catch { return null; }
+    })();
+
+    const [placesJson, searchJson] = await Promise.all([
+      serper("places", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: 20 }).catch(() => ({} as { places?: Array<{ title?: string; rating?: number; ratingCount?: number; placeId?: string }> })),
+      serper("search", { q: data.keyword, gl: "br", hl: "pt-br", location: data.location, num: 20 }).catch(() => ({} as { organic?: Array<{ title?: string; link?: string }> })),
+    ]);
+
+    const placesArr = ((placesJson as { places?: Array<{ title?: string; rating?: number; ratingCount?: number; placeId?: string }> }).places ?? []).slice(0, 20);
+    const localTop = placesArr.map((p, i) => {
+      const title = p.title ?? "Sem nome";
+      const isTarget = !!((data.targetPlaceId && p.placeId === data.targetPlaceId) || normalize(title) === targetKey);
+      return { title, rating: typeof p.rating === "number" ? p.rating : null, reviews: typeof p.ratingCount === "number" ? p.ratingCount : null, isTarget, position: i + 1 };
+    });
+    const localIdx = localTop.findIndex((p) => p.isTarget);
+
+    const organicArr = ((searchJson as { organic?: Array<{ title?: string; link?: string }> }).organic ?? []).slice(0, 20);
+    let matchedUrl: string | null = null;
+    const organicTop = organicArr.map((o, i) => {
+      const title = o.title ?? "";
+      const link = o.link ?? "";
+      let isTarget = false;
+      if (targetHost && link) {
+        try {
+          const h = new URL(link).hostname.replace(/^www\./, "");
+          if (h === targetHost || h.endsWith("." + targetHost)) { isTarget = true; if (!matchedUrl) matchedUrl = link; }
+        } catch {}
+      }
+      if (!isTarget && normalize(title).includes(targetKey) && targetKey.length > 4) {
+        isTarget = true;
+        if (!matchedUrl) matchedUrl = link;
+      }
+      return { title, link, position: i + 1, isTarget };
+    });
+    const organicIdx = organicTop.findIndex((o) => o.isTarget);
+
+    return {
+      keyword: data.keyword,
+      location: data.location,
+      localPack: { position: localIdx >= 0 ? localIdx + 1 : null, totalShown: localTop.length, top: localTop.slice(0, 10) },
+      organic: { position: organicIdx >= 0 ? organicIdx + 1 : null, totalShown: organicTop.length, matchedUrl, top: organicTop.slice(0, 10) },
+    };
+  });
+
 export const fetchPlacePhotos = createServerFn({ method: "POST" })
   .inputValidator((data: { name: string; city?: string | null; address?: string | null }) => {
     if (!data?.name) throw new Error("name obrigatório");
