@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { searchPlaces, enrichLead, type ProspectPlace, type EnrichResult } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
@@ -315,54 +316,94 @@ function LeadCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-1.5 text-xs">
-          {a.signals.map((s) => (
-            <div key={s.label} className={cn(
-              "flex items-center gap-1.5 rounded-md border px-2 py-1",
-              s.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-border bg-muted/30 text-muted-foreground",
-            )}>
-              {s.ok ? <Check className="h-3 w-3 shrink-0" /> : <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />}
-              <span className="truncate">{s.label}</span>
-            </div>
-          ))}
-        </div>
+        <Tabs defaultValue="google" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 h-8">
+            <TabsTrigger value="google" className="text-xs">Google</TabsTrigger>
+            <TabsTrigger value="analise" className="text-xs">Análise</TabsTrigger>
+            <TabsTrigger value="enrich" className="text-xs">
+              Dados {row.enrichment && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />}
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="space-y-1.5 text-xs">
-          {row.address && (
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              <span className="line-clamp-1">{row.address}</span>
+          <TabsContent value="google" className="mt-3 space-y-2">
+            <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
+              <iframe
+                title={`Google Maps ${row.title}`}
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                  row.placeId ? `place_id:${row.placeId}` : `${row.title} ${row.address ?? ""}`,
+                )}&z=16&output=embed`}
+                className="absolute inset-0 h-full w-full"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
-          )}
-          {row.phone && (
-            <div className="flex items-center gap-2">
-              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="tabular-nums">{row.phone}</span>
+            <div className="space-y-1.5 text-xs">
+              {row.address && (
+                <div className="flex items-start gap-2 text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span className="line-clamp-2">{row.address}</span>
+                </div>
+              )}
+              {row.phone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="tabular-nums">{row.phone}</span>
+                </div>
+              )}
+              {site && (
+                <a href={site} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span className="truncate">{row.website}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              )}
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 pt-1 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" /> Abrir perfil completo no Google
+              </a>
             </div>
-          )}
-          {site && (
-            <a href={site} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary hover:underline">
-              <Globe className="h-3.5 w-3.5" />
-              <span className="truncate">{row.website}</span>
-              <ExternalLink className="h-3 w-3 shrink-0" />
-            </a>
-          )}
-        </div>
+          </TabsContent>
 
-        {(row.enrichment || row.enriching) && (
-          <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <Sparkles className="h-3 w-3" /> Enriquecimento
+          <TabsContent value="analise" className="mt-3 space-y-3">
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              {a.signals.map((s) => (
+                <div key={s.label} className={cn(
+                  "flex items-center gap-1.5 rounded-md border px-2 py-1",
+                  s.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400" : "border-border bg-muted/30 text-muted-foreground",
+                )}>
+                  {s.ok ? <Check className="h-3 w-3 shrink-0" /> : <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />}
+                  <span className="truncate">{s.label}</span>
+                </div>
+              ))}
             </div>
-            {row.enriching ? (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="rounded-md border bg-muted/30 p-2.5 text-xs space-y-1">
+              <div className="flex justify-between"><span className="text-muted-foreground">Reputação</span><span className="font-medium">{a.reviewsTier === "top" ? "Popular" : a.reviewsTier === "solido" ? "Sólida" : "Nova"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Nota média</span><span className="font-medium tabular-nums">{row.rating?.toFixed(1) ?? "–"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Reviews</span><span className="font-medium tabular-nums">{row.ratingCount ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Categoria</span><span className="font-medium truncate max-w-[60%] text-right">{row.category ?? "–"}</span></div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="enrich" className="mt-3 space-y-2">
+            {!row.enrichment && !row.enriching && (
+              <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                Clique em <span className="font-medium">Analisar</span> para buscar CNPJ e decisores.
+              </div>
+            )}
+            {row.enriching && (
+              <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" /> Buscando CNPJ e decisor…
               </div>
-            ) : (
-              <div className="space-y-2">
+            )}
+            {row.enrichment && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
                 <div className="flex items-center gap-2">
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  {row.enrichment?.cnpj_suggestions.length ? (
+                  {row.enrichment.cnpj_suggestions.length ? (
                     <select
                       className="flex-1 rounded border bg-background px-1.5 py-0.5 text-xs"
                       value={row.cnpj ?? ""}
@@ -376,7 +417,7 @@ function LeadCard({
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  {row.enrichment?.decisor_suggestions.length ? (
+                  {row.enrichment.decisor_suggestions.length ? (
                     <select
                       className="flex-1 rounded border bg-background px-1.5 py-0.5 text-xs"
                       value={row.decisor ?? ""}
@@ -390,8 +431,8 @@ function LeadCard({
                 </div>
               </div>
             )}
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
 
         <div className="flex items-center gap-2 pt-1">
           {!row.enrichment && !row.enriching && (
@@ -400,13 +441,13 @@ function LeadCard({
             </Button>
           )}
           <Button size="sm" variant="ghost" asChild>
-            <a href={mapsUrl} target="_blank" rel="noreferrer">
+            <a href={mapsUrl} target="_blank" rel="noreferrer" title="Abrir no Maps">
               <MapPin className="h-3 w-3" />
             </a>
           </Button>
           {row.phone && (
             <Button size="sm" variant="ghost" asChild>
-              <a href={`https://wa.me/${row.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
+              <a href={`https://wa.me/${row.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" title="WhatsApp">
                 <MessageSquare className="h-3 w-3" />
               </a>
             </Button>
