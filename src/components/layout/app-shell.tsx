@@ -10,6 +10,7 @@ import {
   LogOut,
   Zap,
   Search,
+  FileBarChart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,6 +34,7 @@ import { store, useStore } from "@/lib/store";
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Prospectar", url: "/prospect", icon: Search },
+  { title: "Auditoria", url: "/audit", icon: FileBarChart },
   { title: "Leads", url: "/leads", icon: Users },
   { title: "Campanhas", url: "/campaigns", icon: Megaphone },
   { title: "Templates", url: "/templates", icon: FileText },
