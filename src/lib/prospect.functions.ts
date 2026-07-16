@@ -189,7 +189,6 @@ export const analyzeCompetition = createServerFn({ method: "POST" })
       insights,
     };
   });
-}
 
 export const fetchPlacePhotos = createServerFn({ method: "POST" })
   .inputValidator((data: { name: string; city?: string | null; address?: string | null }) => {
