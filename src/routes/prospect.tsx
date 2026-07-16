@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { searchPlaces, enrichLead, type ProspectPlace, type EnrichResult } from "@/lib/prospect.functions";
+import { searchPlaces, enrichLead, fetchPlacePhotos, type ProspectPlace, type EnrichResult, type PlacePhoto } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
