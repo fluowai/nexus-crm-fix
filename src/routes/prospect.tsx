@@ -602,6 +602,9 @@ function LeadCard({
             )}
           </TabsContent>
 
+          <TabsContent value="enrich" className="mt-3 space-y-2">
+
+
             {!row.enrichment && !row.enriching && (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                 Clique em <span className="font-medium">Analisar</span> para buscar CNPJ e decisores.
