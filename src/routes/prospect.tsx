@@ -329,7 +329,7 @@ function LeadCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <Tabs defaultValue="google" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-8">
             <TabsTrigger value="google" className="text-xs">Google</TabsTrigger>
             <TabsTrigger value="analise" className="text-xs">Análise</TabsTrigger>
@@ -339,6 +339,46 @@ function LeadCard({
           </TabsList>
 
           <TabsContent value="google" className="mt-3 space-y-2">
+            {/* Fotos reais do perfil (Google Images) */}
+            <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
+              {photosLoading && !photos && (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Buscando fotos…
+                </div>
+              )}
+              {photos && photos.length > 0 && (
+                <img
+                  src={photos[0].url}
+                  alt={row.title}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+              {photos && photos.length === 0 && !photosLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  Sem fotos encontradas
+                </div>
+              )}
+            </div>
+            {photos && photos.length > 1 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {photos.slice(1, 8).map((p, i) => (
+                  <a key={i} href={p.source ?? p.url} target="_blank" rel="noreferrer" className="shrink-0">
+                    <img
+                      src={p.thumb}
+                      alt={p.title ?? row.title}
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-14 w-20 rounded border object-cover hover:opacity-80 transition"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+            {/* Mapa */}
             <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
               <iframe
                 title={`Google Maps ${row.title}`}
