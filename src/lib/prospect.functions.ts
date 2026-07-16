@@ -58,6 +58,48 @@ export const searchPlaces = createServerFn({ method: "POST" })
     return { places };
   });
 
+export interface PlacePhoto {
+  url: string;
+  thumb: string;
+  source: string | null;
+  title: string | null;
+}
+
+export const fetchPlacePhotos = createServerFn({ method: "POST" })
+  .inputValidator((data: { name: string; city?: string | null; address?: string | null }) => {
+    if (!data?.name) throw new Error("name obrigatório");
+    return {
+      name: String(data.name).slice(0, 160),
+      city: data.city ? String(data.city).slice(0, 80) : "",
+      address: data.address ? String(data.address).slice(0, 200) : "",
+    };
+  })
+  .handler(async ({ data }): Promise<{ photos: PlacePhoto[] }> => {
+    const q = `${data.name} ${data.city || data.address || ""}`.trim();
+    try {
+      const json = (await serper("images", { q, gl: "br", hl: "pt-br", num: 10 })) as {
+        images?: Array<{ imageUrl?: string; thumbnailUrl?: string; title?: string; link?: string; source?: string }>;
+      };
+      const seen = new Set<string>();
+      const photos: PlacePhoto[] = [];
+      for (const im of json.images ?? []) {
+        const url = im.imageUrl || im.thumbnailUrl;
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        photos.push({
+          url,
+          thumb: im.thumbnailUrl || url,
+          source: im.source || im.link || null,
+          title: im.title || null,
+        });
+        if (photos.length >= 8) break;
+      }
+      return { photos };
+    } catch {
+      return { photos: [] };
+    }
+  });
+
 export const enrichLead = createServerFn({ method: "POST" })
   .inputValidator((data: { name: string; city: string; website?: string | null }) => {
     if (!data?.name) throw new Error("name obrigatório");

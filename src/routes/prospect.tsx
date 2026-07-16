@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
   Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { searchPlaces, enrichLead, type ProspectPlace, type EnrichResult } from "@/lib/prospect.functions";
+import { searchPlaces, enrichLead, fetchPlacePhotos, type ProspectPlace, type EnrichResult, type PlacePhoto } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -266,6 +266,19 @@ function LeadCard({
     ? `https://www.google.com/maps/place/?q=place_id:${row.placeId}`
     : `https://www.google.com/maps/search/${encodeURIComponent(`${row.title} ${row.address ?? ""}`)}`;
 
+  const [photos, setPhotos] = useState<PlacePhoto[] | null>(null);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("google");
+
+  useEffect(() => {
+    if (activeTab !== "google" || photos !== null || photosLoading) return;
+    setPhotosLoading(true);
+    fetchPlacePhotos({ data: { name: row.title, city: row.address ?? "", address: row.address ?? "" } })
+      .then((r) => setPhotos(r.photos))
+      .catch(() => setPhotos([]))
+      .finally(() => setPhotosLoading(false));
+  }, [activeTab, photos, photosLoading, row.title, row.address]);
+
   return (
     <Card className={cn(
       "group relative overflow-hidden transition-all hover:shadow-lg",
@@ -316,7 +329,7 @@ function LeadCard({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <Tabs defaultValue="google" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-8">
             <TabsTrigger value="google" className="text-xs">Google</TabsTrigger>
             <TabsTrigger value="analise" className="text-xs">Análise</TabsTrigger>
@@ -326,6 +339,46 @@ function LeadCard({
           </TabsList>
 
           <TabsContent value="google" className="mt-3 space-y-2">
+            {/* Fotos reais do perfil (Google Images) */}
+            <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
+              {photosLoading && !photos && (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" /> Buscando fotos…
+                </div>
+              )}
+              {photos && photos.length > 0 && (
+                <img
+                  src={photos[0].url}
+                  alt={row.title}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              )}
+              {photos && photos.length === 0 && !photosLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">
+                  Sem fotos encontradas
+                </div>
+              )}
+            </div>
+            {photos && photos.length > 1 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {photos.slice(1, 8).map((p, i) => (
+                  <a key={i} href={p.source ?? p.url} target="_blank" rel="noreferrer" className="shrink-0">
+                    <img
+                      src={p.thumb}
+                      alt={p.title ?? row.title}
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-14 w-20 rounded border object-cover hover:opacity-80 transition"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+            {/* Mapa */}
             <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
               <iframe
                 title={`Google Maps ${row.title}`}
