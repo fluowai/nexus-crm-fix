@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ProspectRouteImport } from './routes/prospect'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LeadsRouteImport } from './routes/leads'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -31,6 +32,11 @@ const SigninRoute = SigninRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProspectRoute = ProspectRouteImport.update({
+  id: '/prospect',
+  path: '/prospect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/messages': typeof MessagesRoute
+  '/prospect': typeof ProspectRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/templates': typeof TemplatesRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/messages': typeof MessagesRoute
+  '/prospect': typeof ProspectRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/templates': typeof TemplatesRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/leads': typeof LeadsRoute
   '/messages': typeof MessagesRoute
+  '/prospect': typeof ProspectRoute
   '/settings': typeof SettingsRoute
   '/signin': typeof SigninRoute
   '/templates': typeof TemplatesRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leads'
     | '/messages'
+    | '/prospect'
     | '/settings'
     | '/signin'
     | '/templates'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leads'
     | '/messages'
+    | '/prospect'
     | '/settings'
     | '/signin'
     | '/templates'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/leads'
     | '/messages'
+    | '/prospect'
     | '/settings'
     | '/signin'
     | '/templates'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   LeadsRoute: typeof LeadsRoute
   MessagesRoute: typeof MessagesRoute
+  ProspectRoute: typeof ProspectRoute
   SettingsRoute: typeof SettingsRoute
   SigninRoute: typeof SigninRoute
   TemplatesRoute: typeof TemplatesRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/prospect': {
+      id: '/prospect'
+      path: '/prospect'
+      fullPath: '/prospect'
+      preLoaderRoute: typeof ProspectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   LeadsRoute: LeadsRoute,
   MessagesRoute: MessagesRoute,
+  ProspectRoute: ProspectRoute,
   SettingsRoute: SettingsRoute,
   SigninRoute: SigninRoute,
   TemplatesRoute: TemplatesRoute,
@@ -208,13 +229,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
