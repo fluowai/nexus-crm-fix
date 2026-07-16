@@ -353,9 +353,10 @@ function LeadCard({
 
       <CardContent className="space-y-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-8">
+          <TabsList className="grid w-full grid-cols-4 h-8">
             <TabsTrigger value="google" className="text-xs">Google</TabsTrigger>
             <TabsTrigger value="analise" className="text-xs">Análise</TabsTrigger>
+            <TabsTrigger value="concorrentes" className="text-xs">Raio</TabsTrigger>
             <TabsTrigger value="enrich" className="text-xs">
               Dados {row.enrichment && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />}
             </TabsTrigger>
