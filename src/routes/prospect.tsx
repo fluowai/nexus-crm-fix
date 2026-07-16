@@ -236,6 +236,7 @@ function ProspectPage() {
                 <LeadCard
                   key={r.placeId ?? `${r.title}-${i}`}
                   row={r}
+                  segment={segment}
                   onToggle={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, selected: v } : row))}
                   onEnrich={() => enrichRow(i)}
                   onCnpjChange={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, cnpj: v } : row))}
