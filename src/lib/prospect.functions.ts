@@ -65,6 +65,131 @@ export interface PlacePhoto {
   title: string | null;
 }
 
+export interface Competitor {
+  title: string;
+  address: string | null;
+  rating: number | null;
+  ratingCount: number | null;
+  website: string | null;
+  placeId: string | null;
+  score: number;
+  isTarget: boolean;
+}
+
+export interface CompetitionReport {
+  radiusKm: number;
+  segment: string;
+  location: string;
+  competitors: Competitor[];
+  stats: {
+    total: number;
+    avgRating: number;
+    avgReviews: number;
+    totalReviews: number;
+    targetPosition: number | null;
+    targetScore: number | null;
+    percentile: number | null;
+    reviewsShare: number | null;
+    topScore: number;
+  };
+  insights: string[];
+}
+
+function competitorScore(rating: number | null, reviews: number | null) {
+  const r = rating ?? 0;
+  const n = reviews ?? 0;
+  // Bayesian-ish: rating weighted by log(reviews+1)
+  return Math.round(r * 10 * Math.log10(n + 10));
+}
+
+export const analyzeCompetition = createServerFn({ method: "POST" })
+  .inputValidator((data: { segment: string; address: string; targetName: string; targetPlaceId?: string | null; radiusKm: 5 | 10 | 15 }) => {
+    if (!data?.segment || !data?.address || !data?.targetName) throw new Error("segment, address e targetName obrigatórios");
+    const radiusKm = ([5, 10, 15] as const).includes(data.radiusKm) ? data.radiusKm : 5;
+    return {
+      segment: String(data.segment).slice(0, 120),
+      address: String(data.address).slice(0, 200),
+      targetName: String(data.targetName).slice(0, 160),
+      targetPlaceId: data.targetPlaceId ?? null,
+      radiusKm,
+    };
+  })
+  .handler(async ({ data }): Promise<CompetitionReport> => {
+    // Raio aproximado via quantidade de resultados (Serper não filtra por raio real)
+    const numByRadius: Record<number, number> = { 5: 10, 10: 20, 15: 30 };
+    const num = numByRadius[data.radiusKm];
+    const q = `${data.segment} perto de ${data.address}`;
+    const json = (await serper("places", { q, gl: "br", hl: "pt-br", location: data.address, num })) as {
+      places?: Array<{
+        title?: string; address?: string; rating?: number; ratingCount?: number;
+        website?: string; placeId?: string;
+      }>;
+    };
+
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const targetKey = normalize(data.targetName);
+
+    const competitors: Competitor[] = (json.places ?? []).slice(0, num).map((p) => {
+      const title = p.title ?? "Sem nome";
+      const isTarget = !!(
+        (data.targetPlaceId && p.placeId === data.targetPlaceId) ||
+        normalize(title) === targetKey
+      );
+      return {
+        title,
+        address: p.address ?? null,
+        rating: typeof p.rating === "number" ? p.rating : null,
+        ratingCount: typeof p.ratingCount === "number" ? p.ratingCount : null,
+        website: p.website ?? null,
+        placeId: p.placeId ?? null,
+        score: competitorScore(p.rating ?? null, p.ratingCount ?? null),
+        isTarget,
+      };
+    });
+
+    // Ordena por score (desc)
+    competitors.sort((a, b) => b.score - a.score);
+
+    const total = competitors.length;
+    const totalReviews = competitors.reduce((s, c) => s + (c.ratingCount ?? 0), 0);
+    const ratings = competitors.map((c) => c.rating ?? 0).filter((r) => r > 0);
+    const avgRating = ratings.length ? ratings.reduce((s, r) => s + r, 0) / ratings.length : 0;
+    const avgReviews = total ? totalReviews / total : 0;
+
+    const targetIdx = competitors.findIndex((c) => c.isTarget);
+    const targetPosition = targetIdx >= 0 ? targetIdx + 1 : null;
+    const target = targetIdx >= 0 ? competitors[targetIdx] : null;
+    const targetScore = target?.score ?? null;
+    const percentile = target && total > 1 ? Math.round(((total - targetIdx) / total) * 100) : null;
+    const reviewsShare = target && totalReviews > 0 ? Math.round(((target.ratingCount ?? 0) / totalReviews) * 100) : null;
+    const topScore = competitors[0]?.score ?? 0;
+
+    const insights: string[] = [];
+    if (target) {
+      if (targetPosition === 1) insights.push(`🏆 Líder do raio de ${data.radiusKm}km entre ${total} concorrentes.`);
+      else insights.push(`Posição ${targetPosition}º de ${total} no raio de ${data.radiusKm}km.`);
+      if ((target.rating ?? 0) < avgRating) insights.push(`Nota (${target.rating?.toFixed(1) ?? "–"}) abaixo da média local (${avgRating.toFixed(1)}).`);
+      else insights.push(`Nota acima ou igual à média local (${avgRating.toFixed(1)}).`);
+      if ((target.ratingCount ?? 0) < avgReviews) insights.push(`Poucos reviews (${target.ratingCount ?? 0}) vs média ${Math.round(avgReviews)}. Oportunidade de gestão de reputação.`);
+      if (reviewsShare != null) insights.push(`Detém ${reviewsShare}% do volume de reviews da região.`);
+      if (targetScore != null && topScore > 0) {
+        const gap = Math.round(((topScore - targetScore) / topScore) * 100);
+        if (gap > 0) insights.push(`Está ${gap}% atrás do líder em pontuação combinada (nota × reviews).`);
+      }
+    } else {
+      insights.push(`Perfil não apareceu no top ${total}. Alta oportunidade de otimização de SEO local.`);
+    }
+
+    return {
+      radiusKm: data.radiusKm,
+      segment: data.segment,
+      location: data.address,
+      competitors,
+      stats: { total, avgRating, avgReviews, totalReviews, targetPosition, targetScore, percentile, reviewsShare, topScore },
+      insights,
+    };
+  });
+
 export const fetchPlacePhotos = createServerFn({ method: "POST" })
   .inputValidator((data: { name: string; city?: string | null; address?: string | null }) => {
     if (!data?.name) throw new Error("name obrigatório");

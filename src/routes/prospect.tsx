@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
   Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
+  Target, Trophy,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { searchPlaces, enrichLead, fetchPlacePhotos, type ProspectPlace, type EnrichResult, type PlacePhoto } from "@/lib/prospect.functions";
+import { searchPlaces, enrichLead, fetchPlacePhotos, analyzeCompetition, type ProspectPlace, type EnrichResult, type PlacePhoto, type CompetitionReport } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -235,6 +236,7 @@ function ProspectPage() {
                 <LeadCard
                   key={r.placeId ?? `${r.title}-${i}`}
                   row={r}
+                  segment={segment}
                   onToggle={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, selected: v } : row))}
                   onEnrich={() => enrichRow(i)}
                   onCnpjChange={(v) => setRows((rs) => rs.map((row, idx) => idx === i ? { ...row, cnpj: v } : row))}
@@ -250,9 +252,10 @@ function ProspectPage() {
 }
 
 function LeadCard({
-  row, onToggle, onEnrich, onCnpjChange, onDecisorChange,
+  row, segment, onToggle, onEnrich, onCnpjChange, onDecisorChange,
 }: {
   row: Row;
+  segment: string;
   onToggle: (v: boolean) => void;
   onEnrich: () => void;
   onCnpjChange: (v: string) => void;
@@ -269,6 +272,26 @@ function LeadCard({
   const [photos, setPhotos] = useState<PlacePhoto[] | null>(null);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("google");
+  const [radius, setRadius] = useState<5 | 10 | 15>(5);
+  const [reports, setReports] = useState<Partial<Record<5 | 10 | 15, CompetitionReport>>>({});
+  const [reportLoading, setReportLoading] = useState(false);
+  const report = reports[radius];
+
+  const runCompetition = async (r: 5 | 10 | 15) => {
+    if (!row.address) return toast.error("Endereço indisponível para análise");
+    if (!segment) return toast.error("Segmento não informado");
+    setReportLoading(true);
+    try {
+      const rep = await analyzeCompetition({
+        data: { segment, address: row.address, targetName: row.title, targetPlaceId: row.placeId, radiusKm: r },
+      });
+      setReports((prev) => ({ ...prev, [r]: rep }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao analisar concorrência");
+    } finally {
+      setReportLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== "google" || photos !== null || photosLoading) return;
@@ -330,9 +353,10 @@ function LeadCard({
 
       <CardContent className="space-y-3">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-8">
+          <TabsList className="grid w-full grid-cols-4 h-8">
             <TabsTrigger value="google" className="text-xs">Google</TabsTrigger>
             <TabsTrigger value="analise" className="text-xs">Análise</TabsTrigger>
+            <TabsTrigger value="concorrentes" className="text-xs">Raio</TabsTrigger>
             <TabsTrigger value="enrich" className="text-xs">
               Dados {row.enrichment && <span className="ml-1 h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />}
             </TabsTrigger>
@@ -441,7 +465,146 @@ function LeadCard({
             </div>
           </TabsContent>
 
+          <TabsContent value="concorrentes" className="mt-3 space-y-3">
+            <div className="flex items-center gap-1.5">
+              {([5, 10, 15] as const).map((r) => (
+                <Button
+                  key={r}
+                  size="sm"
+                  variant={radius === r ? "default" : "outline"}
+                  className="h-7 flex-1 text-xs"
+                  onClick={() => { setRadius(r); if (!reports[r]) runCompetition(r); }}
+                >
+                  {r}km
+                </Button>
+              ))}
+            </div>
+
+            {reportLoading && !report && (
+              <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Analisando concorrência no raio de {radius}km…
+              </div>
+            )}
+
+            {!report && !reportLoading && (
+              <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                <Target className="mx-auto mb-1 h-4 w-4" />
+                Selecione um raio para gerar o relatório de posicionamento vs concorrentes.
+              </div>
+            )}
+
+            {report && (
+              <>
+                {/* Mapa com busca do segmento na região */}
+                <div className="relative overflow-hidden rounded-md border bg-muted aspect-video">
+                  <iframe
+                    title={`Concorrentes ${radius}km`}
+                    src={`https://maps.google.com/maps?q=${encodeURIComponent(`${segment} perto de ${row.address}`)}&z=${radius <= 5 ? 14 : radius <= 10 ? 13 : 12}&output=embed`}
+                    className="absolute inset-0 h-full w-full"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+
+                {/* Métricas principais */}
+                <div className="grid grid-cols-3 gap-1.5 text-xs">
+                  <div className="rounded-md border bg-muted/30 p-2 text-center">
+                    <div className="text-[10px] uppercase text-muted-foreground">Posição</div>
+                    <div className="text-lg font-bold tabular-nums flex items-center justify-center gap-1">
+                      {report.stats.targetPosition ? (
+                        <>
+                          {report.stats.targetPosition === 1 && <Trophy className="h-3.5 w-3.5 text-amber-500" />}
+                          {report.stats.targetPosition}º
+                        </>
+                      ) : "–"}
+                      <span className="text-xs text-muted-foreground font-normal">/{report.stats.total}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-2 text-center">
+                    <div className="text-[10px] uppercase text-muted-foreground">Percentil</div>
+                    <div className="text-lg font-bold tabular-nums">{report.stats.percentile != null ? `${report.stats.percentile}%` : "–"}</div>
+                  </div>
+                  <div className="rounded-md border bg-muted/30 p-2 text-center">
+                    <div className="text-[10px] uppercase text-muted-foreground">Reviews share</div>
+                    <div className="text-lg font-bold tabular-nums">{report.stats.reviewsShare != null ? `${report.stats.reviewsShare}%` : "–"}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border bg-muted/30 p-2.5 text-xs space-y-1">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Nota média (raio)</span><span className="font-medium tabular-nums">{report.stats.avgRating.toFixed(1)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Reviews média</span><span className="font-medium tabular-nums">{Math.round(report.stats.avgReviews)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Total de reviews</span><span className="font-medium tabular-nums">{report.stats.totalReviews}</span></div>
+                </div>
+
+                {/* Insights */}
+                {report.insights.length > 0 && (
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 text-xs space-y-1">
+                    <div className="font-medium text-primary flex items-center gap-1"><Sparkles className="h-3 w-3" /> Insights</div>
+                    {report.insights.map((ins, i) => (
+                      <div key={i} className="text-foreground/80">• {ins}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Ranking */}
+                <div className="rounded-md border overflow-hidden">
+                  <div className="bg-muted/40 px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                    Ranking no raio de {radius}km
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y">
+                    {report.competitors.map((c, i) => (
+                      <div key={c.placeId ?? `${c.title}-${i}`} className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 text-xs",
+                        c.isTarget && "bg-primary/10 font-medium",
+                      )}>
+                        <span className="w-5 text-center tabular-nums text-muted-foreground">{i + 1}</span>
+                        <span className="flex-1 truncate">{c.title}{c.isTarget && " (você)"}</span>
+                        {c.rating != null && (
+                          <span className="flex items-center gap-0.5 text-muted-foreground tabular-nums">
+                            <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" />{c.rating.toFixed(1)}
+                          </span>
+                        )}
+                        <span className="tabular-nums text-muted-foreground w-10 text-right">{c.ratingCount ?? 0}</span>
+                        <span className="tabular-nums font-medium w-10 text-right">{c.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full h-7 text-xs"
+                  onClick={() => {
+                    const lines = [
+                      `Relatório de Posicionamento — ${row.title}`,
+                      `Segmento: ${segment} • Raio: ${radius}km`,
+                      `Endereço: ${row.address}`,
+                      "",
+                      `Posição: ${report.stats.targetPosition ?? "fora do top"}/${report.stats.total}`,
+                      `Percentil: ${report.stats.percentile ?? "–"}%`,
+                      `Reviews share: ${report.stats.reviewsShare ?? "–"}%`,
+                      `Nota média local: ${report.stats.avgRating.toFixed(1)} | Reviews média: ${Math.round(report.stats.avgReviews)}`,
+                      "",
+                      "Insights:",
+                      ...report.insights.map((i) => `- ${i}`),
+                      "",
+                      "Ranking:",
+                      ...report.competitors.map((c, i) => `${i + 1}. ${c.title}${c.isTarget ? " (VOCÊ)" : ""} — ${c.rating ?? "–"}⭐ (${c.ratingCount ?? 0}) score ${c.score}`),
+                    ].join("\n");
+                    navigator.clipboard.writeText(lines);
+                    toast.success("Relatório copiado");
+                  }}
+                >
+                  <Download className="mr-1 h-3 w-3" /> Copiar relatório
+                </Button>
+              </>
+            )}
+          </TabsContent>
+
           <TabsContent value="enrich" className="mt-3 space-y-2">
+
+
             {!row.enrichment && !row.enriching && (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                 Clique em <span className="font-medium">Analisar</span> para buscar CNPJ e decisores.
