@@ -583,20 +583,54 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }): Promise<InstagramProfile> => {
-    const q = `site:instagram.com "${data.name}" ${data.city}`.trim();
-    const search = (await serper("search", { q, gl: "br", hl: "pt-br", num: 10 }).catch(() => ({}))) as {
-      organic?: Array<{ title?: string; snippet?: string; link?: string }>;
+    const RESERVED = new Set(["p", "reel", "reels", "explore", "accounts", "about", "developer", "directory", "web", "stories", "tv"]);
+    const extractHandleFromUrl = (link: string): string | null => {
+      try {
+        const u = new URL(link);
+        if (!u.hostname.includes("instagram.com")) return null;
+        const parts = u.pathname.split("/").filter(Boolean);
+        if (!parts.length) return null;
+        // /handle, /handle/reels, /handle/p/xxx  → parts[0] é handle
+        const seg = parts[0].toLowerCase();
+        if (RESERVED.has(seg)) return null;
+        if (!/^[a-z0-9._]{1,30}$/.test(seg)) return null;
+        return parts[0];
+      } catch { return null; }
     };
 
-    const organic = (search.organic ?? []).filter((o) => o.link?.includes("instagram.com"));
-    // Prioriza perfis (instagram.com/handle) sobre posts (/p/) ou reels
-    const profileHit = organic.find((o) => {
+    // 1) Múltiplas queries: Serper (mesmo API) tenta caminhos diferentes
+    const queries = [
+      `site:instagram.com "${data.name}"${data.city ? ` ${data.city}` : ""}`,
+      `"${data.name}" ${data.city} instagram`,
+      `${data.name} instagram ${data.city}`,
+    ];
+    const searches = await Promise.all(
+      queries.map((q) => serper("search", { q, gl: "br", hl: "pt-br", num: 10 }).catch(() => ({}))),
+    );
+
+    type Org = { title?: string; snippet?: string; link?: string };
+    const allOrganic: Org[] = searches.flatMap((s) => ((s as { organic?: Org[] }).organic ?? []));
+    const igOrganic = allOrganic.filter((o) => o.link?.includes("instagram.com"));
+
+    // 2) Fallback: extrair link do IG do próprio site
+    let siteIgLink: string | null = null;
+    if (data.website && !igOrganic.length) {
       try {
-        const u = new URL(o.link!);
-        const parts = u.pathname.split("/").filter(Boolean);
-        return parts.length === 1 && !["p", "reel", "explore", "reels"].includes(parts[0]);
-      } catch { return false; }
-    }) ?? organic[0];
+        const url = data.website.startsWith("http") ? data.website : `https://${data.website}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { "User-Agent": "Mozilla/5.0" } });
+        if (res.ok) {
+          const html = (await res.text()).slice(0, 300_000);
+          const m = html.match(/https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9._]{1,30})\/?/);
+          if (m) siteIgLink = `https://www.instagram.com/${m[1]}/`;
+        }
+      } catch {}
+    }
+
+    // 3) Escolhe melhor candidato: perfil puro > qualquer IG > link do site
+    const profileHit =
+      igOrganic.find((o) => o.link && extractHandleFromUrl(o.link) && new URL(o.link).pathname.split("/").filter(Boolean).length === 1) ??
+      igOrganic.find((o) => o.link && extractHandleFromUrl(o.link)) ??
+      (siteIgLink ? { link: siteIgLink, title: "", snippet: "" } as Org : undefined);
 
     let handle: string | null = null;
     let url: string | null = null;
@@ -607,25 +641,26 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
     let posts: string | null = null;
 
     if (profileHit?.link) {
-      try {
-        const u = new URL(profileHit.link);
-        const seg = u.pathname.split("/").filter(Boolean)[0];
-        if (seg && !["p", "reel", "explore", "reels"].includes(seg)) handle = seg;
-        url = `https://www.instagram.com/${handle ?? seg}/`;
-      } catch {}
-      const rawTitle = profileHit.title ?? "";
-      // Título costuma vir "Nome Completo (@handle) • Instagram photos and videos"
-      const nameMatch = rawTitle.match(/^(.+?)\s*\(@/);
+      handle = extractHandleFromUrl(profileHit.link);
+      url = handle ? `https://www.instagram.com/${handle}/` : profileHit.link;
+
+      // Agrega snippet/título de TODAS as entradas do mesmo handle (melhor chance de pegar estatísticas)
+      const sameHandle = igOrganic.filter((o) => o.link && extractHandleFromUrl(o.link) === handle);
+      const titles = sameHandle.map((o) => o.title ?? "").join(" | ");
+      const snippets = sameHandle.map((o) => o.snippet ?? "").join(" | ") || (profileHit.snippet ?? "");
+
+      const nameMatch = titles.match(/^([^|]+?)\s*\(@/) ?? titles.match(/([^|]+?)\s*\(@/);
       if (nameMatch) fullName = nameMatch[1].trim();
-      const snippet = profileHit.snippet ?? "";
-      const stats = parseIgSnippet(snippet);
+
+      const stats = parseIgSnippet(snippets);
       followers = stats.followers;
       following = stats.following;
       posts = stats.posts;
-      // Bio: parte do snippet após as estatísticas
-      const bioPart = snippet.split(/\d+[\d.,KMkm]*\s*(?:publica[cç][õo]es|posts)/i)[1];
-      bio = (bioPart || snippet).replace(/\s+/g, " ").trim().slice(0, 240) || null;
+
+      const bioPart = snippets.split(/\d+[\d.,KMkm]*\s*(?:publica[cç][õo]es|posts)/i)[1];
+      bio = (bioPart || snippets).replace(/\s+/g, " ").replace(/\|/g, " ").trim().slice(0, 240) || null;
     }
+
 
     // Fotos: perfil e posts recentes via Serper images
     const imgQuery = handle ? `site:instagram.com/${handle}` : `site:instagram.com "${data.name}"`;
@@ -661,7 +696,7 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
       avatar,
       recentPosts,
       found: !!profileHit,
-      raw: (organic ?? []).slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
+      raw: igOrganic.slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
     };
   });
 
