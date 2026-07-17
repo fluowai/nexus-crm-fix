@@ -488,11 +488,14 @@ function LeadCard({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1 text-sm font-semibold">
+                    <div className="flex flex-wrap items-center gap-1 text-sm font-semibold">
                       <Instagram className="h-3.5 w-3.5 text-primary" />@{instagram.handle ?? "—"}
+                      {instagram.isVerified && <Badge variant="secondary" className="h-4 px-1 text-[9px]">✓ Verificado</Badge>}
+                      {instagram.isBusiness && <Badge variant="outline" className="h-4 px-1 text-[9px]">Business</Badge>}
                     </div>
                     {instagram.fullName && <div className="truncate text-xs text-muted-foreground">{instagram.fullName}</div>}
-                    <div className="mt-1 flex gap-3 text-[11px]">
+                    {instagram.category && <div className="truncate text-[11px] text-muted-foreground">📌 {instagram.category}</div>}
+                    <div className="mt-1 flex gap-3 text-[11px] tabular-nums">
                       <span><strong>{instagram.posts ?? "–"}</strong> posts</span>
                       <span><strong>{instagram.followers ?? "–"}</strong> seg.</span>
                       <span><strong>{instagram.following ?? "–"}</strong> seguindo</span>
@@ -500,11 +503,16 @@ function LeadCard({
                   </div>
                 </div>
                 {instagram.bio && (
-                  <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">{instagram.bio}</div>
+                  <div className="rounded-md border bg-muted/30 p-2 text-xs whitespace-pre-wrap">{instagram.bio}</div>
+                )}
+                {instagram.externalUrl && (
+                  <a href={instagram.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline truncate">
+                    <Globe className="h-3 w-3 shrink-0" /> {instagram.externalUrl}
+                  </a>
                 )}
                 {instagram.recentPosts.length > 0 && (
                   <div className="grid grid-cols-3 gap-1.5">
-                    {instagram.recentPosts.slice(0, 6).map((p, i) => (
+                    {instagram.recentPosts.slice(0, 9).map((p, i) => (
                       <a key={i} href={p.link ?? "#"} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded border bg-muted">
                         <img
                           src={p.thumb}
