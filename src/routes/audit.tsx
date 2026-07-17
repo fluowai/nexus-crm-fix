@@ -91,9 +91,10 @@ function AuditPage() {
     setSelected(place);
     setReport(null);
     setPhotos([]);
+    setInstagram(null);
     setLoading(true);
     try {
-      const [rep, ph] = await Promise.all([
+      const [rep, ph, ig] = await Promise.all([
         analyzeCompetition({
           data: {
             segment,
@@ -104,9 +105,11 @@ function AuditPage() {
           },
         }),
         fetchPlacePhotos({ data: { name: place.title, city, address: place.address } }),
+        fetchInstagramProfile({ data: { name: place.title, city, website: place.website } }),
       ]);
       setReport(rep);
       setPhotos(ph.photos);
+      setInstagram(ig);
       toast.success("Auditoria concluída");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha na análise");
