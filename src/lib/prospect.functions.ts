@@ -696,7 +696,7 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
       avatar,
       recentPosts,
       found: !!profileHit,
-      raw: (organic ?? []).slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
+      raw: igOrganic.slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
     };
   });
 
