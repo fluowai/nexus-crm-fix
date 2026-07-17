@@ -376,6 +376,79 @@ function AuditPage() {
                 </div>
               </section>
 
+              {/* Instagram */}
+              {instagram && (
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs uppercase tracking-wider text-muted-foreground">Presença no Instagram</div>
+                    {instagram.url && (
+                      <a href={instagram.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+                        Abrir perfil ↗
+                      </a>
+                    )}
+                  </div>
+                  {!instagram.found ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      Nenhum perfil do Instagram encontrado publicamente para <strong>{selected.title}</strong>. Oportunidade: criar/otimizar presença.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border p-4">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                        {instagram.avatar ? (
+                          <img
+                            src={instagram.avatar}
+                            alt={instagram.handle ?? "instagram"}
+                            className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
+                            onError={(e) => (e.currentTarget.style.display = "none")}
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+                            <Instagram className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Instagram className="h-4 w-4 text-primary" />
+                            <span className="font-semibold">@{instagram.handle ?? "—"}</span>
+                            {instagram.fullName && <span className="text-sm text-muted-foreground">• {instagram.fullName}</span>}
+                          </div>
+                          {instagram.bio && <div className="text-sm text-muted-foreground">{instagram.bio}</div>}
+                          <div className="flex gap-4 pt-1 text-sm">
+                            <span><strong>{instagram.posts ?? "–"}</strong> <span className="text-muted-foreground">posts</span></span>
+                            <span><strong>{instagram.followers ?? "–"}</strong> <span className="text-muted-foreground">seguidores</span></span>
+                            <span><strong>{instagram.following ?? "–"}</strong> <span className="text-muted-foreground">seguindo</span></span>
+                          </div>
+                        </div>
+                      </div>
+                      {instagram.recentPosts.length > 0 && (
+                        <div className="mt-4">
+                          <div className="mb-2 text-[10px] uppercase text-muted-foreground">Posts recentes</div>
+                          <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+                            {instagram.recentPosts.map((p, i) => (
+                              <a
+                                key={i}
+                                href={p.link ?? "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="aspect-square overflow-hidden rounded-md border bg-muted"
+                              >
+                                <img
+                                  src={p.thumb}
+                                  alt={p.title ?? `post ${i + 1}`}
+                                  className="h-full w-full object-cover transition hover:scale-105"
+                                  onError={(e) => (e.currentTarget.style.display = "none")}
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+
+
               {/* Palavras-chave: posicionamento no Google */}
               <section className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
