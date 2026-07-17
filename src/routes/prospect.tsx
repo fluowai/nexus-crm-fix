@@ -276,6 +276,8 @@ function LeadCard({
   const [reports, setReports] = useState<Partial<Record<5 | 10 | 15, CompetitionReport>>>({});
   const [reportLoading, setReportLoading] = useState(false);
   const report = reports[radius];
+  const [instagram, setInstagram] = useState<InstagramProfile | null>(null);
+  const [igLoading, setIgLoading] = useState(false);
 
   const runCompetition = async (r: 5 | 10 | 15) => {
     if (!row.address) return toast.error("Endereço indisponível para análise");
