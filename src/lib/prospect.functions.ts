@@ -692,58 +692,68 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
     };
 
     if (handle) {
+      // Usamos scrape.serper.dev — o fetch direto do worker é bloqueado (429)
+      // pela detecção anti-bot da Meta (TLS fingerprint).
       try {
-        const res = await fetch(`https://www.instagram.com/${handle}/`, {
-          signal: AbortSignal.timeout(7000),
-          headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
-            "Accept": "text/html,application/xhtml+xml",
-            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-          },
+        const scrapeRes = await fetch("https://scrape.serper.dev", {
+          method: "POST",
+          headers: { "X-API-KEY": process.env.SERPER_API_KEY!, "Content-Type": "application/json" },
+          body: JSON.stringify({ url: `https://www.instagram.com/${handle}/`, includeMarkdown: false }),
+          signal: AbortSignal.timeout(12000),
         });
-        if (res.ok) {
-          const html = (await res.text()).slice(0, 800_000);
-          const meta = (prop: string) => {
-            const re = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i");
-            const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, "i");
-            return html.match(re)?.[1] ?? html.match(re2)?.[1] ?? null;
+        if (scrapeRes.ok) {
+          const scraped = (await scrapeRes.json()) as {
+            text?: string;
+            metadata?: Record<string, string>;
           };
-          const desc = meta("og:description");
-          const title = meta("og:title");
-          const img = meta("og:image");
-          if (img) avatar = img.replace(/&amp;/g, "&");
-          if (title) {
-            const nm = title.match(/^(.+?)\s*\(@/);
+          const text = scraped.text ?? "";
+          const md = scraped.metadata ?? {};
+
+          // Metadata og:*
+          const ogImg = md["og:image"] ?? md["og:image:secure_url"];
+          if (ogImg) avatar = ogImg.replace(/&amp;/g, "&");
+          const ogTitle = md["og:title"] ?? md["title"];
+          if (ogTitle) {
+            const nm = ogTitle.match(/^(.+?)\s*\(@/);
             if (nm) fullName = nm[1].trim();
-            if (/✓|verified/i.test(title)) isVerified = true;
           }
-          if (desc) {
-            const stats = parseIgSnippet(desc);
-            followers = stats.followers ?? followers;
-            following = stats.following ?? following;
-            posts = stats.posts ?? posts;
-            const bioMatch = desc.match(/["'“](.+?)["'”]\s*$/);
-            if (bioMatch) bio = bioMatch[1].slice(0, 400);
+          const ogDesc = md["og:description"] ?? md["description"];
+          if (ogDesc) {
+            const stats = parseIgSnippet(ogDesc);
+            if (stats.followers) followers = stats.followers;
+            if (stats.following) following = stats.following;
+            if (stats.posts) posts = stats.posts;
           }
-          // Category / business / external URL do JSON embutido
-          const catM = html.match(/"category_name"\s*:\s*"([^"]+)"/);
-          if (catM) category = catM[1].replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
-          const extM = html.match(/"external_url"\s*:\s*"([^"]+)"/);
-          if (extM) externalUrl = extM[1].replace(/\\\//g, "/");
-          if (/"is_business_account"\s*:\s*true/.test(html)) isBusiness = true;
-          if (/"is_verified"\s*:\s*true/.test(html)) isVerified = true;
-          // Bio completa
-          const bioM = html.match(/"biography"\s*:\s*"((?:[^"\\]|\\.){0,600})"/);
-          if (bioM) {
-            const decoded = bioM[1]
-              .replace(/\\n/g, " ")
-              .replace(/\\"/g, '"')
-              .replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
-            if (decoded.trim()) bio = decoded.trim().slice(0, 400);
+
+          // Parse texto renderizado — "5.2M followers", "3,444 following", "1,234 posts"
+          const grab = (re: RegExp): string | null => {
+            const m = text.match(re);
+            return m ? m[1].trim() : null;
+          };
+          const fT = grab(/([\d.,]+\s*[KkMm]?)\s+followers?/i) ?? grab(/([\d.,]+\s*[KkMm]?)\s+seguidores/i);
+          const gT = grab(/([\d.,]+\s*[KkMm]?)\s+following/i) ?? grab(/([\d.,]+\s*[KkMm]?)\s+seguindo/i);
+          const pT = grab(/([\d.,]+\s*[KkMm]?)\s+posts?/i) ?? grab(/([\d.,]+\s*[KkMm]?)\s+publica[cç][õo]es/i);
+          if (fT) followers = fT;
+          if (gT) following = gT;
+          if (pT) posts = pT;
+
+          // Bio: linha após o handle no texto renderizado
+          const handleIdx = text.toLowerCase().indexOf(`\n${handle}\n`);
+          if (handleIdx >= 0) {
+            const after = text.slice(handleIdx + handle.length + 2, handleIdx + 800);
+            // pega até "Show more posts" / "Accounts you might like"
+            const stop = after.search(/(Show more posts|Accounts you might like|Meta\nAbout)/i);
+            const chunk = (stop > 0 ? after.slice(0, stop) : after).trim();
+            // remove nome cheio duplicado
+            const lines = chunk.split("\n").map((l) => l.trim()).filter(Boolean);
+            const bioLines = lines.filter((l) => l !== fullName && !/^\*\s/.test(l)).slice(0, 4);
+            if (bioLines.length) bio = bioLines.join("\n").slice(0, 500);
           }
         }
       } catch {}
     }
+
+
 
     // 5) Posts recentes via Serper images (thumbs de /p/ e /reel/)
     const imgQuery = handle ? `site:instagram.com/${handle}` : `site:instagram.com "${data.name}"`;

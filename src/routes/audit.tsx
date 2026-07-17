@@ -396,7 +396,7 @@ function AuditPage() {
                       <div className="flex flex-col gap-4 md:flex-row md:items-center">
                         {instagram.avatar ? (
                           <img
-                            src={instagram.avatar}
+                            src={`/api/ig-image?url=${encodeURIComponent(instagram.avatar)}`}
                             alt={instagram.handle ?? "instagram"}
                             className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
                             onError={(e) => (e.currentTarget.style.display = "none")}
@@ -441,7 +441,7 @@ function AuditPage() {
                                 className="aspect-square overflow-hidden rounded-md border bg-muted"
                               >
                                 <img
-                                  src={p.thumb}
+                                  src={`/api/ig-image?url=${encodeURIComponent(p.thumb)}`}
                                   alt={p.title ?? `post ${i + 1}`}
                                   className="h-full w-full object-cover transition hover:scale-105"
                                   onError={(e) => (e.currentTarget.style.display = "none")}

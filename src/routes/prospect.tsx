@@ -475,10 +475,9 @@ function LeadCard({
                 <div className="flex items-center gap-3 rounded-md border p-2.5">
                   {instagram.avatar ? (
                     <img
-                      src={instagram.avatar}
+                      src={`/api/ig-image?url=${encodeURIComponent(instagram.avatar)}`}
                       alt={instagram.handle ?? "ig"}
                       loading="lazy"
-                      referrerPolicy="no-referrer"
                       className="h-14 w-14 rounded-full object-cover ring-2 ring-primary/20"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                     />
@@ -515,10 +514,9 @@ function LeadCard({
                     {instagram.recentPosts.slice(0, 9).map((p, i) => (
                       <a key={i} href={p.link ?? "#"} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded border bg-muted">
                         <img
-                          src={p.thumb}
+                          src={`/api/ig-image?url=${encodeURIComponent(p.thumb)}`}
                           alt={`post ${i + 1}`}
                           loading="lazy"
-                          referrerPolicy="no-referrer"
                           className="h-full w-full object-cover hover:opacity-80 transition"
                           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
