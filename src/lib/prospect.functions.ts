@@ -552,9 +552,17 @@ export interface InstagramProfile {
   fullName: string | null;
   bio: string | null;
   followers: string | null;
+  followersNum: number | null;
   following: string | null;
+  followingNum: number | null;
   posts: string | null;
+  postsNum: number | null;
   avatar: string | null;
+  category: string | null;
+  externalUrl: string | null;
+  isVerified: boolean;
+  isBusiness: boolean;
+  engagementRate: number | null;
   recentPosts: InstagramPost[];
   found: boolean;
   raw: { title: string; snippet: string; link: string }[];
