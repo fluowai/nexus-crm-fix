@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
   Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
-  Target, Trophy,
+  Target, Trophy, Instagram,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { searchPlaces, enrichLead, fetchPlacePhotos, analyzeCompetition, type ProspectPlace, type EnrichResult, type PlacePhoto, type CompetitionReport } from "@/lib/prospect.functions";
+import { searchPlaces, enrichLead, fetchPlacePhotos, analyzeCompetition, fetchInstagramProfile, type ProspectPlace, type EnrichResult, type PlacePhoto, type CompetitionReport, type InstagramProfile } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
