@@ -60,7 +60,7 @@ function AuditPage() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CompetitionReport | null>(null);
   const [photos, setPhotos] = useState<PlacePhoto[]>([]);
-  const [instagram, setInstagram] = useState<InstagramProfile | null>(null);
+  
 
   const [keywordsInput, setKeywordsInput] = useState("");
   const [rankings, setRankings] = useState<KeywordRanking[]>([]);
