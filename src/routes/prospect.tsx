@@ -304,6 +304,15 @@ function LeadCard({
       .finally(() => setPhotosLoading(false));
   }, [activeTab, photos, photosLoading, row.title, row.address]);
 
+  useEffect(() => {
+    if (activeTab !== "instagram" || instagram !== null || igLoading) return;
+    setIgLoading(true);
+    fetchInstagramProfile({ data: { name: row.title, city: row.address ?? "", website: row.website } })
+      .then((r) => setInstagram(r))
+      .catch(() => setInstagram({ handle: null, url: null, fullName: null, bio: null, followers: null, following: null, posts: null, avatar: null, recentPosts: [], found: false, raw: [] }))
+      .finally(() => setIgLoading(false));
+  }, [activeTab, instagram, igLoading, row.title, row.address, row.website]);
+
   return (
     <Card className={cn(
       "group relative overflow-hidden transition-all hover:shadow-lg",
