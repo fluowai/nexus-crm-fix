@@ -552,9 +552,17 @@ export interface InstagramProfile {
   fullName: string | null;
   bio: string | null;
   followers: string | null;
+  followersNum: number | null;
   following: string | null;
+  followingNum: number | null;
   posts: string | null;
+  postsNum: number | null;
   avatar: string | null;
+  category: string | null;
+  externalUrl: string | null;
+  isVerified: boolean;
+  isBusiness: boolean;
+  engagementRate: number | null;
   recentPosts: InstagramPost[];
   found: boolean;
   raw: { title: string; snippet: string; link: string }[];
@@ -662,20 +670,94 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
     }
 
 
-    // Fotos: perfil e posts recentes via Serper images
+    // 4) Scrape direto instagram.com/{handle}/ — pega og:description / og:title / og:image
+    // og:description tem o formato: "1,234 Followers, 567 Following, 89 Posts - See Instagram photos and videos from Nome (@handle)"
+    // ou em pt: "1.234 seguidores, 567 seguindo, 89 publicações - Nome (@handle) no Instagram: '...bio...'"
+    let category: string | null = null;
+    let externalUrl: string | null = null;
+    let isVerified = false;
+    let isBusiness = false;
+    let avatar: string | null = null;
+
+    const toNum = (s: string | null): number | null => {
+      if (!s) return null;
+      const t = s.replace(/\s/g, "").toLowerCase();
+      const m = t.match(/^([\d.,]+)\s*([km])?$/);
+      if (!m) return null;
+      let n = parseFloat(m[1].replace(/\.(?=\d{3}\b)/g, "").replace(",", "."));
+      if (isNaN(n)) return null;
+      if (m[2] === "k") n *= 1_000;
+      if (m[2] === "m") n *= 1_000_000;
+      return Math.round(n);
+    };
+
+    if (handle) {
+      try {
+        const res = await fetch(`https://www.instagram.com/${handle}/`, {
+          signal: AbortSignal.timeout(7000),
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; facebookexternalhit/1.1; +http://www.facebook.com/externalhit_uatext.php)",
+            "Accept": "text/html,application/xhtml+xml",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+          },
+        });
+        if (res.ok) {
+          const html = (await res.text()).slice(0, 800_000);
+          const meta = (prop: string) => {
+            const re = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i");
+            const re2 = new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${prop}["']`, "i");
+            return html.match(re)?.[1] ?? html.match(re2)?.[1] ?? null;
+          };
+          const desc = meta("og:description");
+          const title = meta("og:title");
+          const img = meta("og:image");
+          if (img) avatar = img.replace(/&amp;/g, "&");
+          if (title) {
+            const nm = title.match(/^(.+?)\s*\(@/);
+            if (nm) fullName = nm[1].trim();
+            if (/✓|verified/i.test(title)) isVerified = true;
+          }
+          if (desc) {
+            const stats = parseIgSnippet(desc);
+            followers = stats.followers ?? followers;
+            following = stats.following ?? following;
+            posts = stats.posts ?? posts;
+            const bioMatch = desc.match(/["'“](.+?)["'”]\s*$/);
+            if (bioMatch) bio = bioMatch[1].slice(0, 400);
+          }
+          // Category / business / external URL do JSON embutido
+          const catM = html.match(/"category_name"\s*:\s*"([^"]+)"/);
+          if (catM) category = catM[1].replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+          const extM = html.match(/"external_url"\s*:\s*"([^"]+)"/);
+          if (extM) externalUrl = extM[1].replace(/\\\//g, "/");
+          if (/"is_business_account"\s*:\s*true/.test(html)) isBusiness = true;
+          if (/"is_verified"\s*:\s*true/.test(html)) isVerified = true;
+          // Bio completa
+          const bioM = html.match(/"biography"\s*:\s*"((?:[^"\\]|\\.){0,600})"/);
+          if (bioM) {
+            const decoded = bioM[1]
+              .replace(/\\n/g, " ")
+              .replace(/\\"/g, '"')
+              .replace(/\\u([0-9a-f]{4})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+            if (decoded.trim()) bio = decoded.trim().slice(0, 400);
+          }
+        }
+      } catch {}
+    }
+
+    // 5) Posts recentes via Serper images (thumbs de /p/ e /reel/)
     const imgQuery = handle ? `site:instagram.com/${handle}` : `site:instagram.com "${data.name}"`;
     const imgs = (await serper("images", { q: imgQuery, gl: "br", hl: "pt-br", num: 12 }).catch(() => ({}))) as {
       images?: Array<{ imageUrl?: string; thumbnailUrl?: string; title?: string; link?: string }>;
     };
     const seen = new Set<string>();
     const recentPosts: InstagramPost[] = [];
-    let avatar: string | null = null;
     for (const im of imgs.images ?? []) {
       const u = im.imageUrl || im.thumbnailUrl;
       if (!u || seen.has(u)) continue;
       seen.add(u);
       if (!avatar) avatar = u;
-      if (im.link && /instagram\.com\/(p|reel)\//.test(im.link) && recentPosts.length < 6) {
+      if (im.link && /instagram\.com\/(p|reel)\//.test(im.link) && recentPosts.length < 9) {
         recentPosts.push({
           imageUrl: u,
           thumb: im.thumbnailUrl || u,
@@ -685,18 +767,33 @@ export const fetchInstagramProfile = createServerFn({ method: "POST" })
       }
     }
 
+    const followersNum = toNum(followers);
+    const followingNum = toNum(following);
+    const postsNum = toNum(posts);
+    // Engajamento estimado grosseiro: reviews de posts recentes / seguidores. Sem likes reais, deixamos null.
+    const engagementRate: number | null = null;
+
     return {
       handle,
       url,
       fullName,
       bio,
       followers,
+      followersNum,
       following,
+      followingNum,
       posts,
+      postsNum,
       avatar,
+      category,
+      externalUrl,
+      isVerified,
+      isBusiness,
+      engagementRate,
       recentPosts,
-      found: !!profileHit,
+      found: !!(profileHit || handle),
       raw: igOrganic.slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
     };
   });
+
 
