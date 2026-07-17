@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   Search, Sparkles, Download, Loader2, ExternalLink, Star, MapPin, Phone,
   Globe, MessageSquare, Building2, User, TrendingUp, TrendingDown, Minus, Check,
-  Target, Trophy, Instagram,
+  Target, Trophy,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { searchPlaces, enrichLead, fetchPlacePhotos, analyzeCompetition, fetchInstagramProfile, type ProspectPlace, type EnrichResult, type PlacePhoto, type CompetitionReport, type InstagramProfile } from "@/lib/prospect.functions";
+import { searchPlaces, enrichLead, fetchPlacePhotos, analyzeCompetition, type ProspectPlace, type EnrichResult, type PlacePhoto, type CompetitionReport } from "@/lib/prospect.functions";
 import { store, useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -276,8 +276,6 @@ function LeadCard({
   const [reports, setReports] = useState<Partial<Record<5 | 10 | 15, CompetitionReport>>>({});
   const [reportLoading, setReportLoading] = useState(false);
   const report = reports[radius];
-  const [instagram, setInstagram] = useState<InstagramProfile | null>(null);
-  const [igLoading, setIgLoading] = useState(false);
 
   const runCompetition = async (r: 5 | 10 | 15) => {
     if (!row.address) return toast.error("Endereço indisponível para análise");
@@ -303,15 +301,6 @@ function LeadCard({
       .catch(() => setPhotos([]))
       .finally(() => setPhotosLoading(false));
   }, [activeTab, photos, photosLoading, row.title, row.address]);
-
-  useEffect(() => {
-    if (activeTab !== "instagram" || instagram !== null || igLoading) return;
-    setIgLoading(true);
-    fetchInstagramProfile({ data: { name: row.title, city: row.address ?? "", website: row.website } })
-      .then((r) => setInstagram(r))
-      .catch(() => setInstagram(null))
-      .finally(() => setIgLoading(false));
-  }, [activeTab, instagram, igLoading, row.title, row.address, row.website]);
 
   return (
     <Card className={cn(
@@ -458,80 +447,6 @@ function LeadCard({
             </div>
           </TabsContent>
 
-          <TabsContent value="instagram" className="mt-3 space-y-2">
-            {igLoading && !instagram && (
-              <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" /> Buscando perfil no Instagram…
-              </div>
-            )}
-            {instagram && !instagram.found && (
-              <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                <Instagram className="mb-1 h-4 w-4" />
-                Sem perfil público encontrado. Oportunidade de criar/otimizar presença.
-              </div>
-            )}
-            {instagram && instagram.found && (
-              <>
-                <div className="flex items-center gap-3 rounded-md border p-2.5">
-                  {instagram.avatar ? (
-                    <img
-                      src={`/api/ig-image?url=${encodeURIComponent(instagram.avatar)}`}
-                      alt={instagram.handle ?? "ig"}
-                      loading="lazy"
-                      className="h-14 w-14 rounded-full object-cover ring-2 ring-primary/20"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                      <Instagram className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1 text-sm font-semibold">
-                      <Instagram className="h-3.5 w-3.5 text-primary" />@{instagram.handle ?? "—"}
-                      {instagram.isVerified && <Badge variant="secondary" className="h-4 px-1 text-[9px]">✓ Verificado</Badge>}
-                      {instagram.isBusiness && <Badge variant="outline" className="h-4 px-1 text-[9px]">Business</Badge>}
-                    </div>
-                    {instagram.fullName && <div className="truncate text-xs text-muted-foreground">{instagram.fullName}</div>}
-                    {instagram.category && <div className="truncate text-[11px] text-muted-foreground">📌 {instagram.category}</div>}
-                    <div className="mt-1 flex gap-3 text-[11px] tabular-nums">
-                      <span><strong>{instagram.posts ?? "–"}</strong> posts</span>
-                      <span><strong>{instagram.followers ?? "–"}</strong> seg.</span>
-                      <span><strong>{instagram.following ?? "–"}</strong> seguindo</span>
-                    </div>
-                  </div>
-                </div>
-                {instagram.bio && (
-                  <div className="rounded-md border bg-muted/30 p-2 text-xs whitespace-pre-wrap">{instagram.bio}</div>
-                )}
-                {instagram.externalUrl && (
-                  <a href={instagram.externalUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline truncate">
-                    <Globe className="h-3 w-3 shrink-0" /> {instagram.externalUrl}
-                  </a>
-                )}
-                {instagram.recentPosts.length > 0 && (
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {instagram.recentPosts.slice(0, 9).map((p, i) => (
-                      <a key={i} href={p.link ?? "#"} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded border bg-muted">
-                        <img
-                          src={`/api/ig-image?url=${encodeURIComponent(p.thumb)}`}
-                          alt={`post ${i + 1}`}
-                          loading="lazy"
-                          className="h-full w-full object-cover hover:opacity-80 transition"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                        />
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {instagram.url && (
-                  <a href={instagram.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-primary hover:underline">
-                    <ExternalLink className="h-3 w-3" /> Abrir perfil no Instagram
-                  </a>
-                )}
-              </>
-            )}
-          </TabsContent>
 
           <TabsContent value="analise" className="mt-3 space-y-3">
 

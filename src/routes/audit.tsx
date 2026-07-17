@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Search, Loader2, Star, MapPin, Phone, Globe, Zap, Printer,
-  Trophy, Target, Check, Building2, User, TrendingUp, TrendingDown, Instagram,
+  Trophy, Target, Check, Building2, User, TrendingUp, TrendingDown,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking, fetchInstagramProfile,
-  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking, type InstagramProfile,
+  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking,
+  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking,
 } from "@/lib/prospect.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ function AuditPage() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<CompetitionReport | null>(null);
   const [photos, setPhotos] = useState<PlacePhoto[]>([]);
-  const [instagram, setInstagram] = useState<InstagramProfile | null>(null);
+  
 
   const [keywordsInput, setKeywordsInput] = useState("");
   const [rankings, setRankings] = useState<KeywordRanking[]>([]);
@@ -91,10 +91,9 @@ function AuditPage() {
     setSelected(place);
     setReport(null);
     setPhotos([]);
-    setInstagram(null);
     setLoading(true);
     try {
-      const [rep, ph, ig] = await Promise.all([
+      const [rep, ph] = await Promise.all([
         analyzeCompetition({
           data: {
             segment,
@@ -105,11 +104,9 @@ function AuditPage() {
           },
         }),
         fetchPlacePhotos({ data: { name: place.title, city, address: place.address } }),
-        fetchInstagramProfile({ data: { name: place.title, city, website: place.website } }),
       ]);
       setReport(rep);
       setPhotos(ph.photos);
-      setInstagram(ig);
       toast.success("Auditoria concluída");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha na análise");
@@ -376,85 +373,6 @@ function AuditPage() {
                 </div>
               </section>
 
-              {/* Instagram */}
-              {instagram && (
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground">Presença no Instagram</div>
-                    {instagram.url && (
-                      <a href={instagram.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
-                        Abrir perfil ↗
-                      </a>
-                    )}
-                  </div>
-                  {!instagram.found ? (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      Nenhum perfil do Instagram encontrado publicamente para <strong>{selected.title}</strong>. Oportunidade: criar/otimizar presença.
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border p-4">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                        {instagram.avatar ? (
-                          <img
-                            src={`/api/ig-image?url=${encodeURIComponent(instagram.avatar)}`}
-                            alt={instagram.handle ?? "instagram"}
-                            className="h-20 w-20 rounded-full object-cover ring-2 ring-primary/20"
-                            onError={(e) => (e.currentTarget.style.display = "none")}
-                          />
-                        ) : (
-                          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-                            <Instagram className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="flex-1 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Instagram className="h-4 w-4 text-primary" />
-                            <span className="font-semibold">@{instagram.handle ?? "—"}</span>
-                            {instagram.fullName && <span className="text-sm text-muted-foreground">• {instagram.fullName}</span>}
-                            {instagram.isVerified && <Badge variant="secondary" className="text-[10px]">✓ Verificado</Badge>}
-                            {instagram.isBusiness && <Badge variant="outline" className="text-[10px]">Business</Badge>}
-                          </div>
-                          {instagram.category && <div className="text-xs text-muted-foreground">📌 {instagram.category}</div>}
-                          {instagram.bio && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{instagram.bio}</div>}
-                          {instagram.externalUrl && (
-                            <a href={instagram.externalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                              <Globe className="h-3 w-3" />{instagram.externalUrl}
-                            </a>
-                          )}
-                          <div className="flex flex-wrap gap-4 pt-1 text-sm tabular-nums">
-                            <span><strong>{instagram.posts ?? "–"}</strong> <span className="text-muted-foreground">posts</span></span>
-                            <span><strong>{instagram.followers ?? "–"}</strong> <span className="text-muted-foreground">seguidores</span></span>
-                            <span><strong>{instagram.following ?? "–"}</strong> <span className="text-muted-foreground">seguindo</span></span>
-                          </div>
-                        </div>
-                      </div>
-                      {instagram.recentPosts.length > 0 && (
-                        <div className="mt-4">
-                          <div className="mb-2 text-[10px] uppercase text-muted-foreground">Posts recentes</div>
-                          <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
-                            {instagram.recentPosts.map((p, i) => (
-                              <a
-                                key={i}
-                                href={p.link ?? "#"}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="aspect-square overflow-hidden rounded-md border bg-muted"
-                              >
-                                <img
-                                  src={`/api/ig-image?url=${encodeURIComponent(p.thumb)}`}
-                                  alt={p.title ?? `post ${i + 1}`}
-                                  className="h-full w-full object-cover transition hover:scale-105"
-                                  onError={(e) => (e.currentTarget.style.display = "none")}
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </section>
-              )}
 
 
               {/* Palavras-chave: posicionamento no Google */}
