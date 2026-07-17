@@ -539,3 +539,129 @@ export const enrichLead = createServerFn({ method: "POST" })
     };
   });
 
+export interface InstagramPost {
+  imageUrl: string;
+  thumb: string;
+  link: string | null;
+  title: string | null;
+}
+
+export interface InstagramProfile {
+  handle: string | null;
+  url: string | null;
+  fullName: string | null;
+  bio: string | null;
+  followers: string | null;
+  following: string | null;
+  posts: string | null;
+  avatar: string | null;
+  recentPosts: InstagramPost[];
+  found: boolean;
+  raw: { title: string; snippet: string; link: string }[];
+}
+
+function parseIgSnippet(text: string) {
+  // Padrões comuns: "1.234 seguidores, 567 seguindo, 89 publicações"
+  const nOr = (re: RegExp) => {
+    const m = text.match(re);
+    return m ? m[1].replace(/\s/g, "") : null;
+  };
+  return {
+    followers: nOr(/([\d.,KMkm]+)\s*(?:seguidores|followers)/i),
+    following: nOr(/([\d.,KMkm]+)\s*(?:seguindo|following)/i),
+    posts: nOr(/([\d.,KMkm]+)\s*(?:publica[cç][õo]es|posts)/i),
+  };
+}
+
+export const fetchInstagramProfile = createServerFn({ method: "POST" })
+  .inputValidator((data: { name: string; city?: string | null; website?: string | null }) => {
+    if (!data?.name) throw new Error("name obrigatório");
+    return {
+      name: String(data.name).slice(0, 160),
+      city: data.city ? String(data.city).slice(0, 80) : "",
+      website: data.website ? String(data.website).slice(0, 200) : "",
+    };
+  })
+  .handler(async ({ data }): Promise<InstagramProfile> => {
+    const q = `site:instagram.com "${data.name}" ${data.city}`.trim();
+    const search = (await serper("search", { q, gl: "br", hl: "pt-br", num: 10 }).catch(() => ({}))) as {
+      organic?: Array<{ title?: string; snippet?: string; link?: string }>;
+    };
+
+    const organic = (search.organic ?? []).filter((o) => o.link?.includes("instagram.com"));
+    // Prioriza perfis (instagram.com/handle) sobre posts (/p/) ou reels
+    const profileHit = organic.find((o) => {
+      try {
+        const u = new URL(o.link!);
+        const parts = u.pathname.split("/").filter(Boolean);
+        return parts.length === 1 && !["p", "reel", "explore", "reels"].includes(parts[0]);
+      } catch { return false; }
+    }) ?? organic[0];
+
+    let handle: string | null = null;
+    let url: string | null = null;
+    let fullName: string | null = null;
+    let bio: string | null = null;
+    let followers: string | null = null;
+    let following: string | null = null;
+    let posts: string | null = null;
+
+    if (profileHit?.link) {
+      try {
+        const u = new URL(profileHit.link);
+        const seg = u.pathname.split("/").filter(Boolean)[0];
+        if (seg && !["p", "reel", "explore", "reels"].includes(seg)) handle = seg;
+        url = `https://www.instagram.com/${handle ?? seg}/`;
+      } catch {}
+      const rawTitle = profileHit.title ?? "";
+      // Título costuma vir "Nome Completo (@handle) • Instagram photos and videos"
+      const nameMatch = rawTitle.match(/^(.+?)\s*\(@/);
+      if (nameMatch) fullName = nameMatch[1].trim();
+      const snippet = profileHit.snippet ?? "";
+      const stats = parseIgSnippet(snippet);
+      followers = stats.followers;
+      following = stats.following;
+      posts = stats.posts;
+      // Bio: parte do snippet após as estatísticas
+      const bioPart = snippet.split(/\d+[\d.,KMkm]*\s*(?:publica[cç][õo]es|posts)/i)[1];
+      bio = (bioPart || snippet).replace(/\s+/g, " ").trim().slice(0, 240) || null;
+    }
+
+    // Fotos: perfil e posts recentes via Serper images
+    const imgQuery = handle ? `site:instagram.com/${handle}` : `site:instagram.com "${data.name}"`;
+    const imgs = (await serper("images", { q: imgQuery, gl: "br", hl: "pt-br", num: 12 }).catch(() => ({}))) as {
+      images?: Array<{ imageUrl?: string; thumbnailUrl?: string; title?: string; link?: string }>;
+    };
+    const seen = new Set<string>();
+    const recentPosts: InstagramPost[] = [];
+    let avatar: string | null = null;
+    for (const im of imgs.images ?? []) {
+      const u = im.imageUrl || im.thumbnailUrl;
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      if (!avatar) avatar = u;
+      if (im.link && /instagram\.com\/(p|reel)\//.test(im.link) && recentPosts.length < 6) {
+        recentPosts.push({
+          imageUrl: u,
+          thumb: im.thumbnailUrl || u,
+          link: im.link,
+          title: im.title || null,
+        });
+      }
+    }
+
+    return {
+      handle,
+      url,
+      fullName,
+      bio,
+      followers,
+      following,
+      posts,
+      avatar,
+      recentPosts,
+      found: !!profileHit,
+      raw: (organic ?? []).slice(0, 5).map((o) => ({ title: o.title ?? "", snippet: o.snippet ?? "", link: o.link ?? "" })),
+    };
+  });
+
