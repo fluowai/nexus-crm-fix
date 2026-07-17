@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
   Search, Loader2, Star, MapPin, Phone, Globe, Zap, Printer,
-  Trophy, Target, Check, Building2, User, TrendingUp, TrendingDown,
+  Trophy, Target, Check, Building2, User, TrendingUp, TrendingDown, Instagram,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking,
-  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking,
+  searchPlaces, analyzeCompetition, fetchPlacePhotos, analyzeKeywordRanking, fetchInstagramProfile,
+  type ProspectPlace, type CompetitionReport, type PlacePhoto, type KeywordRanking, type InstagramProfile,
 } from "@/lib/prospect.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
