@@ -276,8 +276,6 @@ function LeadCard({
   const [reports, setReports] = useState<Partial<Record<5 | 10 | 15, CompetitionReport>>>({});
   const [reportLoading, setReportLoading] = useState(false);
   const report = reports[radius];
-  const [instagram, setInstagram] = useState<InstagramProfile | null>(null);
-  const [igLoading, setIgLoading] = useState(false);
 
   const runCompetition = async (r: 5 | 10 | 15) => {
     if (!row.address) return toast.error("Endereço indisponível para análise");
@@ -303,15 +301,6 @@ function LeadCard({
       .catch(() => setPhotos([]))
       .finally(() => setPhotosLoading(false));
   }, [activeTab, photos, photosLoading, row.title, row.address]);
-
-  useEffect(() => {
-    if (activeTab !== "instagram" || instagram !== null || igLoading) return;
-    setIgLoading(true);
-    fetchInstagramProfile({ data: { name: row.title, city: row.address ?? "", website: row.website } })
-      .then((r) => setInstagram(r))
-      .catch(() => setInstagram(null))
-      .finally(() => setIgLoading(false));
-  }, [activeTab, instagram, igLoading, row.title, row.address, row.website]);
 
   return (
     <Card className={cn(
