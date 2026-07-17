@@ -116,6 +116,40 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    import("@/integrations/supabase/client").then(({ supabase }) => {
+      import("@/lib/store").then(({ store }) => {
+        store.init();
+        supabase.auth.getSession().then(({ data }) => {
+          if (data.session?.user) {
+            const u = data.session.user;
+            store.hydrateSession({
+              email: u.email ?? "",
+              name: (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || (u.email?.split("@")[0] ?? "Usuário"),
+            });
+          } else {
+            store.hydrateSession(null);
+          }
+        });
+        supabase.auth.onAuthStateChange((event, session) => {
+          if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+          if (session?.user) {
+            const u = session.user;
+            store.hydrateSession({
+              email: u.email ?? "",
+              name: (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || (u.email?.split("@")[0] ?? "Usuário"),
+            });
+          } else {
+            store.hydrateSession(null);
+          }
+          router.invalidate();
+          if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
+        });
+      });
+    });
+  }, [router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

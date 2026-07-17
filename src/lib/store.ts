@@ -178,8 +178,9 @@ export const store = {
     state = load();
     listeners.forEach((l) => l());
   },
-  signIn: (email: string) => set({ session: { email, name: email.split("@")[0] } }),
+  signIn: (email: string, name?: string) => set({ session: { email, name: name || email.split("@")[0] } }),
   signOut: () => set({ session: null }),
+  hydrateSession: (session: Session | null) => set({ session }),
   connectWpp: (v: boolean) => set({ wpp_connected: v }),
   addCampaign: (c: Omit<Campaign, "id" | "created_at">) =>
     set((s) => ({ campaigns: [...s.campaigns, { ...c, id: crypto.randomUUID(), created_at: new Date().toISOString() }] })),

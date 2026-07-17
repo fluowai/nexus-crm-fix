@@ -114,7 +114,9 @@ function AppSidebar() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 group-data-[collapsible=icon]:hidden"
-            onClick={() => {
+            onClick={async () => {
+              const { supabase } = await import("@/integrations/supabase/client");
+              await supabase.auth.signOut();
               store.signOut();
               navigate({ to: "/signin" });
             }}
