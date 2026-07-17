@@ -407,13 +407,21 @@ function AuditPage() {
                           </div>
                         )}
                         <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Instagram className="h-4 w-4 text-primary" />
                             <span className="font-semibold">@{instagram.handle ?? "—"}</span>
                             {instagram.fullName && <span className="text-sm text-muted-foreground">• {instagram.fullName}</span>}
+                            {instagram.isVerified && <Badge variant="secondary" className="text-[10px]">✓ Verificado</Badge>}
+                            {instagram.isBusiness && <Badge variant="outline" className="text-[10px]">Business</Badge>}
                           </div>
-                          {instagram.bio && <div className="text-sm text-muted-foreground">{instagram.bio}</div>}
-                          <div className="flex gap-4 pt-1 text-sm">
+                          {instagram.category && <div className="text-xs text-muted-foreground">📌 {instagram.category}</div>}
+                          {instagram.bio && <div className="text-sm text-muted-foreground whitespace-pre-wrap">{instagram.bio}</div>}
+                          {instagram.externalUrl && (
+                            <a href={instagram.externalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                              <Globe className="h-3 w-3" />{instagram.externalUrl}
+                            </a>
+                          )}
+                          <div className="flex flex-wrap gap-4 pt-1 text-sm tabular-nums">
                             <span><strong>{instagram.posts ?? "–"}</strong> <span className="text-muted-foreground">posts</span></span>
                             <span><strong>{instagram.followers ?? "–"}</strong> <span className="text-muted-foreground">seguidores</span></span>
                             <span><strong>{instagram.following ?? "–"}</strong> <span className="text-muted-foreground">seguindo</span></span>
