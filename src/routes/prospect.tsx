@@ -309,7 +309,7 @@ function LeadCard({
     setIgLoading(true);
     fetchInstagramProfile({ data: { name: row.title, city: row.address ?? "", website: row.website } })
       .then((r) => setInstagram(r))
-      .catch(() => setInstagram({ handle: null, url: null, fullName: null, bio: null, followers: null, following: null, posts: null, avatar: null, recentPosts: [], found: false, raw: [] }))
+      .catch(() => setInstagram(null))
       .finally(() => setIgLoading(false));
   }, [activeTab, instagram, igLoading, row.title, row.address, row.website]);
 
